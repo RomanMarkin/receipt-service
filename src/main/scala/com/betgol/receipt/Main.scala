@@ -8,6 +8,7 @@ import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.config.AppConfig
 import com.betgol.receipt.domain.ReceiptParserLive
 import com.betgol.receipt.repo.ReceiptRepoLive
+import com.betgol.receipt.service.ReceiptServiceLive
 
 
 object Main extends ZIOAppDefault {
@@ -30,10 +31,9 @@ object Main extends ZIOAppDefault {
 
   // Compose all layers
   private val appLayer =
-    mongoLayer >+>
-      ReceiptRepoLive.layer ++
-        ReceiptParserLive.layer ++
-        Server.default
+    mongoLayer >+> ReceiptRepoLive.layer ++
+      ReceiptParserLive.layer >+> ReceiptServiceLive.layer ++
+      Server.default
 
   override def run: ZIO[Any, Any, Any] = {
     Server.serve(ReceiptRoutes.routes)
