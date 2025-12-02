@@ -6,7 +6,7 @@ import java.time.LocalDate
 
 case class ReceiptRequest(receiptData: String, playerId: String)
 object ReceiptRequest {
-  implicit val decoder: JsonDecoder[ReceiptRequest] = DeriveJsonDecoder.gen
+  implicit val codec: JsonCodec[ReceiptRequest] = DeriveJsonCodec.gen
 }
 
 sealed trait ApiResponse

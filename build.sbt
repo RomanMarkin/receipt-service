@@ -17,5 +17,14 @@ libraryDependencies ++= Seq(
   "dev.zio"       %% "zio-config-typesafe" % "4.0.6",
   "dev.zio"       %% "zio-config-magnolia" % "4.0.6",     // automatic config derivation
   "org.mongodb.scala" %% "mongo-scala-driver" % "4.11.0" cross CrossVersion.for3Use2_13,
-  "ch.qos.logback" % "logback-classic"     % "1.5.21"
+  "ch.qos.logback" % "logback-classic"     % "1.5.21",
+
+  // Test Dependencies
+  "dev.zio"       %% "zio-test"                       % "2.1.23" % Test,
+  "dev.zio"       %% "zio-test-sbt"                   % "2.1.23" % Test,
+  "dev.zio"       %% "zio-test-magnolia"              % "2.1.23" % Test,
+  "com.dimafeng"  %% "testcontainers-scala-mongodb"   % "0.41.3" % Test,
+  "org.testcontainers" % "mongodb"                    % "1.19.7" % Test
 )
+
+testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")

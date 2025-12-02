@@ -12,16 +12,16 @@ trait ReceiptParser {
    *
    * Expected format (7 fields minimum), separated by `|`:
    *
-   * orgId | docType | series | docId | vat | total | date
+   * issuerTaxId | docType | docSeries | docNumber | vatAmount | totalAmount | issueDate
    *
    * Field details:
-   *   - orgId:   11-digit numeric string (e.g. "12345678901")
-   *   - docType: must be "01" or "03"
-   *   - series:  pattern `^[FB]\d{3}$ (e.g. "F001", "B123")`
-   *   - docId:   8-digit numeric string
-   *   - vat:     decimal number; commas are allowed and normalized (ignored)
-   *   - total:   decimal number; commas are allowed and normalized
-   *   - date:    accepts formats "dd/MM/yyyy" or "yyyy-MM-dd"
+   *   - issuerTaxId: 11-digit numeric string (e.g. "12345678901")
+   *   - docType:     must be "01" or "03"
+   *   - docSeries:   pattern `^[FB]\d{3}$ (e.g. "F001", "B123")`
+   *   - docNumber:   8-digit numeric string
+   *   - vatAmount:   decimal number; commas are allowed and normalized (ignored)
+   *   - totalAmount: decimal number; commas are allowed and normalized
+   *   - issueDate:   accepts formats "dd/MM/yyyy" or "yyyy-MM-dd"
    *
    * Example rawData:
    * "12345678901|01|F001|00001234|18.0|150.50|2024-11-30"
@@ -34,7 +34,7 @@ trait ReceiptParser {
 
 case class ReceiptParserLive() extends ReceiptParser {
 
-  private val dateFormats = List(
+  private val allowedDateFormats = List(
     DateTimeFormatter.ofPattern("dd/MM/yyyy"),
     DateTimeFormatter.ofPattern("yyyy-MM-dd")
   )
@@ -44,29 +44,28 @@ case class ReceiptParserLive() extends ReceiptParser {
 
     if (parts.length < 7) throw new Exception("Insufficient data fields")
 
-    val orgId     = parts(0)
-    val docType   = parts(1)
-    val series    = parts(2)
-    val docId     = parts(3)
+    val issuerTaxId = parts(0)
+    val docType     = parts(1)
+    val docSeries   = parts(2)
+    val docId       = parts(3)
     // field #4 (VAT) is ignored
-    val totalStr  = parts(5).replace(",", ".")
-    val dateStr   = parts(6)
+    val totalStr    = parts(5).replace(",", ".")
+    val dateStr     = parts(6)
 
     // Validation Rules
-    if (!orgId.matches("\\d{11}")) throw new Exception(s"Invalid OrgID: $orgId")
-    if (docType != "01" && docType != "03") throw new Exception(s"Invalid DocType: $docType")
-    if (!series.matches("^[FB]\\d{3}$")) throw new Exception(s"Invalid Series: $series")
-    if (!docId.matches("\\d{8}")) throw new Exception(s"Invalid DocID: $docId")
+    if (!issuerTaxId.matches("\\d{11}")) throw new Exception(s"Invalid Issuer Tax Id (RUC): $issuerTaxId")
+    if (docType != "01" && docType != "03") throw new Exception(s"Invalid document type: $docType")
+    if (!docSeries.matches("^[FB]\\d{3}$")) throw new Exception(s"Invalid document series: $docSeries")
+    if (!docId.matches("\\d{8}")) throw new Exception(s"Invalid document number: $docId")
 
-    val total = Try(totalStr.toDouble).getOrElse(throw new Exception("Invalid Total Amount"))
+    val total = Try(totalStr.toDouble).getOrElse(throw new Exception("Invalid total amount"))
 
-    // Try parsing date with multiple formats
-    val date = dateFormats.view.map(fmt => Try(LocalDate.parse(dateStr, fmt)))
+    val date = allowedDateFormats.view.map(fmt => Try(LocalDate.parse(dateStr, fmt)))
       .find(_.isSuccess)
       .map(_.get)
-      .getOrElse(throw new Exception(s"Invalid Date format: $dateStr"))
+      .getOrElse(throw new Exception(s"Invalid date format: $dateStr"))
 
-    ParsedReceipt(orgId, docType, series, docId, total, date)
+    ParsedReceipt(issuerTaxId, docType, docSeries, docId, total, date)
   }.mapError(_.getMessage) // Java exception => ZIO error string
 }
 
