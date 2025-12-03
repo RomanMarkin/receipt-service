@@ -1,14 +1,14 @@
 package com.betgol.receipt
 
-import zio.*
-import zio.http.*
-import zio.config.typesafe.TypesafeConfigProvider
-import org.mongodb.scala.*
 import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.config.AppConfig
-import com.betgol.receipt.domain.ReceiptParserLive
-import com.betgol.receipt.repo.ReceiptRepoLive
+import com.betgol.receipt.infrastructure.parsing.SunatQrParser
+import com.betgol.receipt.infrastructure.repo.{MongoReceiptRepository, MongoReceiptRetryRepository}
 import com.betgol.receipt.service.ReceiptServiceLive
+import org.mongodb.scala.*
+import zio.*
+import zio.config.typesafe.TypesafeConfigProvider
+import zio.http.*
 
 
 object Main extends ZIOAppDefault {
@@ -31,9 +31,9 @@ object Main extends ZIOAppDefault {
 
   // Compose all layers
   private val appLayer =
-    mongoLayer >+> ReceiptRepoLive.layer ++
-      ReceiptParserLive.layer >+> ReceiptServiceLive.layer ++
-      Server.default
+    mongoLayer >+> (MongoReceiptRepository.layer ++ MongoReceiptRetryRepository.layer) ++
+    SunatQrParser.layer >+> ReceiptServiceLive.layer ++
+    Server.default
 
   override def run: ZIO[Any, Any, Any] = {
     Server.serve(ReceiptRoutes.routes)

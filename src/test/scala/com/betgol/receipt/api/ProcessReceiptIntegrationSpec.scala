@@ -2,8 +2,9 @@ package com.betgol.receipt.api
 
 import com.betgol.receipt.TestMongoLayer
 import com.betgol.receipt.api.ReceiptRoutes
-import com.betgol.receipt.domain.*
-import com.betgol.receipt.repo.ReceiptRepoLive
+import com.betgol.receipt.api.dto.ReceiptRequest
+import com.betgol.receipt.infrastructure.parsing.SunatQrParser
+import com.betgol.receipt.infrastructure.repo.{MongoReceiptRepository, MongoReceiptRetryRepository}
 import com.betgol.receipt.service.ReceiptServiceLive
 import zio.*
 import zio.config.typesafe.TypesafeConfigProvider
@@ -20,19 +21,17 @@ object ProcessReceiptIntegrationSpec extends ZIOSpecDefault {
 
   // Full application layer with test DB
   private val testLayer =
-    TestMongoLayer.layer >+>
-    ReceiptRepoLive.layer ++
-    ReceiptParserLive.layer >+>
-    ReceiptServiceLive.layer
+    TestMongoLayer.layer >+> (MongoReceiptRepository.layer ++ MongoReceiptRetryRepository.layer) ++
+    SunatQrParser.layer >+> ReceiptServiceLive.layer
 
   // Helper to build a request
   private def buildRequest(body: String): Request =
     Request.post(URL(Path.root / "processReceipt"), Body.fromString(body))
 
-  // Sample Valid Data
+  // Sample valid sata
   private def randomIssuerTaxId = List.fill(11)(scala.util.Random.nextInt(10)).mkString
   private def validReceipt = s"$randomIssuerTaxId|01|F756|00068781|36.48|239.13|2025-02-22|6|hash"
-  val playerId     = "player-123"
+  val playerId = "player-123"
 
   override def spec = suite("/processReceipt endpoint integration tests")(
 

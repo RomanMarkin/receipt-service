@@ -1,33 +1,30 @@
 package com.betgol.receipt.domain
 
-import zio.json._
-import java.time.LocalDate
+import com.betgol.receipt.domain.Types.CountryIsoCode
 
+import java.time.{Instant, LocalDate}
 
-case class ReceiptRequest(receiptData: String, playerId: String)
-object ReceiptRequest {
-  implicit val codec: JsonCodec[ReceiptRequest] = DeriveJsonCodec.gen
-}
-
-sealed trait ApiResponse
-
-case class ApiSuccessResponse(message: String) extends ApiResponse
-object ApiSuccessResponse {
-  implicit val encoder: JsonEncoder[ApiSuccessResponse] = DeriveJsonEncoder.gen
-}
-
-case class ApiErrorResponse(error: String) extends ApiResponse
-object ApiErrorResponse {
-  implicit val encoder: JsonEncoder[ApiErrorResponse] = DeriveJsonEncoder.gen
-}
 
 case class ParsedReceipt(issuerTaxId: String,
                          docType: String,
                          docSeries: String,
                          docNumber: String,
                          totalAmount: Double,
-                         date: LocalDate)
+                         date: LocalDate,
+                         country: CountryIsoCode = CountryIsoCode("PE")) // Temporary hardcoded to Peru for now
 
 enum ReceiptStatus {
-  case ValidReceiptData, InvalidReceiptData
+  case ValidReceiptData
+  case InvalidReceiptData
+  case Verified
+  case VerificationFailed
 }
+
+enum ReceiptRetryStatus {
+  case Pending
+}
+
+case class TaxAuthorityConfirmation(apiProvider: String,
+                                    confirmationTime: Instant,
+                                    verificationId: String,
+                                    statusMessage: String)

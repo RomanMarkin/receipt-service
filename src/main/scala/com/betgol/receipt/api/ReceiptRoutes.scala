@@ -1,6 +1,7 @@
 package com.betgol.receipt.api
 
-import com.betgol.receipt.domain.*
+import com.betgol.receipt.api.dto.{ApiErrorResponse, ApiSuccessResponse, ReceiptRequest}
+import com.betgol.receipt.domain.{DuplicateReceipt, InvalidReceipt, ReceiptError, SystemError}
 import com.betgol.receipt.service.ReceiptService
 import zio.*
 import zio.http.*
@@ -13,18 +14,17 @@ object ReceiptRoutes {
     Routes(
       Method.POST / "processReceipt" -> handler { (req: Request) =>
         req.body.asString
-          .map(_.fromJson[ReceiptRequest])
-          .flatMap {
-            case Left(jsonError) =>
-              ZIO.succeed(Response.json(ApiErrorResponse(s"Invalid JSON format: $jsonError").toJson).status(Status.BadRequest))
+          .map(_.fromJson[ReceiptRequest]).flatMap {
             case Right(request) =>
-              ZIO.serviceWithZIO[ReceiptService](_.process(request))
+              ZIO.serviceWithZIO[ReceiptService](_.process(request.toCommand))
                 .as(Response.json(ApiSuccessResponse("Receipt accepted").toJson))
                 .catchAll(mapErrorToResponse)
+            case Left(jsonError) =>
+              ZIO.succeed(Response.json(ApiErrorResponse(s"Invalid JSON format: $jsonError").toJson).status(Status.BadRequest))
           }
           .catchAll { e =>
             ZIO.logError(s"Transport error: $e") *>
-              ZIO.succeed(Response.status(Status.InternalServerError))
+            ZIO.succeed(Response.status(Status.InternalServerError))
           }
       }
     )

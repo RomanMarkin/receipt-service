@@ -1,38 +1,41 @@
-package com.betgol.receipt.domain
+package com.betgol.receipt.infrastructure.parsing
 
-import zio._
+import com.betgol.receipt.domain.ParsedReceipt
+import com.betgol.receipt.domain.parsing.ReceiptParser
+import zio.{IO, ULayer, ZIO, ZLayer}
+
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import scala.util.Try
 
-
-trait ReceiptParser {
-  /**
-   * Parses a raw receipt string into a `ParsedReceipt`.
-   *
-   * Expected format (7 fields minimum), separated by `|`:
-   *
-   * issuerTaxId | docType | docSeries | docNumber | vatAmount | totalAmount | issueDate
-   *
-   * Field details:
-   *   - issuerTaxId: 11-digit numeric string (e.g. "12345678901")
-   *   - docType:     must be "01" or "03"
-   *   - docSeries:   pattern `^[FB]\d{3}$ (e.g. "F001", "B123")`
-   *   - docNumber:   8-digit numeric string
-   *   - vatAmount:   decimal number; commas are allowed and normalized (ignored)
-   *   - totalAmount: decimal number; commas are allowed and normalized
-   *   - issueDate:   accepts formats "dd/MM/yyyy" or "yyyy-MM-dd"
-   *
-   * Example rawData:
-   * "12345678901|01|F001|00001234|18.0|150.50|2024-11-30"
-   *
-   * @param rawData pipe-separated receipt string
-   * @return ParsedReceipt or an error describing why parsing failed
-   */
-  def parse(rawData: String): IO[String, ParsedReceipt]
-}
-
-case class ReceiptParserLive() extends ReceiptParser {
+/**
+ * Parses a raw SUNAT QR Code Data String into a `ParsedReceipt`.
+ * The input format follows the "Cadena de Datos del Código QR" standard
+ * defined by SUNAT for Peruvian Electronic Invoicing (CPE).
+ *
+ * Expected format (7 fields minimum), separated by `|`:
+ *
+ * issuerTaxId | docType | docSeries | docNumber | vatAmount | totalAmount | issueDate
+ *
+ * Field details:
+ *   - issuerTaxId: 11-digit numeric string (e.g. "12345678901")
+ *   - docType:     must be "01" or "03"
+ *   - docSeries:   pattern `^[FB]\d{3}$ (e.g. "F001", "B123")`
+ *   - docNumber:   8-digit numeric string
+ *   - vatAmount:   ignored
+ *   - totalAmount: decimal number; commas are allowed and normalized
+ *   - issueDate:   accepts formats "dd/MM/yyyy" or "yyyy-MM-dd"
+ *   - customerIdType: ignored
+ *   - customerDocumentNumber: ignored
+ *   - digitalSignatureHash: ignored
+ *
+ * Example rawData:
+ * "12345678901|01|F001|00001234|18.0|150.50|2024-11-30"
+ *
+ * @param rawData pipe-separated receipt string
+ * @return ParsedReceipt or an error describing why parsing failed
+ */
+case class SunatQrParser() extends ReceiptParser {
 
   private val allowedDateFormats = List(
     DateTimeFormatter.ofPattern("dd/MM/yyyy"),
@@ -69,6 +72,6 @@ case class ReceiptParserLive() extends ReceiptParser {
   }.mapError(_.getMessage) // Java exception => ZIO error string
 }
 
-object ReceiptParserLive {
-  val layer: ULayer[ReceiptParser] = ZLayer.succeed(ReceiptParserLive())
+object SunatQrParser {
+  val layer: ULayer[ReceiptParser] = ZLayer.succeed(SunatQrParser())
 }
