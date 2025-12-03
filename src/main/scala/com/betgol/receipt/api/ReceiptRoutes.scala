@@ -1,7 +1,7 @@
 package com.betgol.receipt.api
 
 import com.betgol.receipt.api.dto.{ApiErrorResponse, ApiSuccessResponse, ReceiptRequest}
-import com.betgol.receipt.domain.{DuplicateReceipt, InvalidReceipt, ReceiptError, SystemError}
+import com.betgol.receipt.domain.*
 import com.betgol.receipt.service.ReceiptService
 import zio.*
 import zio.http.*
@@ -34,6 +34,8 @@ object ReceiptRoutes {
       ZIO.succeed(Response.json(ApiErrorResponse(s"Invalid receipt: $msg").toJson).status(Status.BadRequest))
     case DuplicateReceipt(msg) =>
       ZIO.succeed(Response.json(ApiErrorResponse(msg).toJson).status(Status.Conflict))
+    case FiscalRecordNotFound(msg) =>
+      ZIO.succeed(Response.json(ApiErrorResponse(msg).toJson).status(Status.UnprocessableEntity))
     case SystemError(_) =>
       ZIO.succeed(Response.json(ApiErrorResponse("Internal Server Error").toJson).status(Status.InternalServerError))
   }

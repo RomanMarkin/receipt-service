@@ -2,6 +2,7 @@ package com.betgol.receipt
 
 import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.config.AppConfig
+import com.betgol.receipt.infrastructure.clients.{ApiPeruClient, FactilizaClient, HardcodedFiscalClientProvider}
 import com.betgol.receipt.infrastructure.parsing.SunatQrParser
 import com.betgol.receipt.infrastructure.repo.{MongoReceiptRepository, MongoReceiptRetryRepository}
 import com.betgol.receipt.service.ReceiptServiceLive
@@ -31,8 +32,12 @@ object Main extends ZIOAppDefault {
 
   // Compose all layers
   private val appLayer =
-    mongoLayer >+> (MongoReceiptRepository.layer ++ MongoReceiptRetryRepository.layer) ++
-    SunatQrParser.layer >+> ReceiptServiceLive.layer ++
+    mongoLayer >+>
+    (MongoReceiptRepository.layer ++ MongoReceiptRetryRepository.layer) ++
+    SunatQrParser.layer >+>
+    (ApiPeruClient.layer ++ FactilizaClient.layer) >+>
+    HardcodedFiscalClientProvider.layer >+>
+    ReceiptServiceLive.layer ++
     Server.default
 
   override def run: ZIO[Any, Any, Any] = {

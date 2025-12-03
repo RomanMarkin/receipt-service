@@ -1,10 +1,10 @@
-package com.betgol.receipt
+package com.betgol.receipt.fixtures
 
 import com.betgol.receipt.config.AppConfig
-import zio.*
-import org.mongodb.scala.*
 import com.dimafeng.testcontainers.MongoDBContainer
+import org.mongodb.scala.*
 import org.testcontainers.utility.DockerImageName
+import zio.*
 
 
 object TestMongoLayer {

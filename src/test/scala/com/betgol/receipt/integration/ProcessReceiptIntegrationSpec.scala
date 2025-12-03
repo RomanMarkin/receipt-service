@@ -1,10 +1,11 @@
-package com.betgol.receipt.api
+package com.betgol.receipt.integration
 
-import com.betgol.receipt.TestMongoLayer
 import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.api.dto.ReceiptRequest
+import com.betgol.receipt.fixtures.TestMongoLayer
 import com.betgol.receipt.infrastructure.parsing.SunatQrParser
 import com.betgol.receipt.infrastructure.repo.{MongoReceiptRepository, MongoReceiptRetryRepository}
+import com.betgol.receipt.mocks.clients.MockFiscalClientProvider
 import com.betgol.receipt.service.ReceiptServiceLive
 import zio.*
 import zio.config.typesafe.TypesafeConfigProvider
@@ -22,7 +23,9 @@ object ProcessReceiptIntegrationSpec extends ZIOSpecDefault {
   // Full application layer with test DB
   private val testLayer =
     TestMongoLayer.layer >+> (MongoReceiptRepository.layer ++ MongoReceiptRetryRepository.layer) ++
-    SunatQrParser.layer >+> ReceiptServiceLive.layer
+    SunatQrParser.layer >+>
+    MockFiscalClientProvider.layer >+>
+    ReceiptServiceLive.layer
 
   // Helper to build a request
   private def buildRequest(body: String): Request =
@@ -261,5 +264,5 @@ object ProcessReceiptIntegrationSpec extends ZIOSpecDefault {
 
   ).provideLayerShared(
     Scope.default >+> testLayer.orDie
-  )
+  ) @@ TestAspect.withLiveClock @@ TestAspect.sequential
 }
