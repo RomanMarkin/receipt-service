@@ -9,11 +9,11 @@ import java.util.Date
 object MongoMappers {
 
   extension (d: LocalDate) {
-    private def toMongoDate: Date = Date.from(d.atStartOfDay(ZoneId.of("UTC")).toInstant)
+    def toMongoDate: Date = Date.from(d.atStartOfDay(ZoneId.of("UTC")).toInstant)
   }
 
   extension (i: Instant) {
-    private def toMongoDate: Date = Date.from(i)
+    def toMongoDate: Date = Date.from(i)
   }
 
   extension (r: ParsedReceipt) {

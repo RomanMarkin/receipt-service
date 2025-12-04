@@ -51,7 +51,7 @@ case class ReceiptServiceLive(parser: ReceiptParser,
       }
     } yield receiptId
 
-  private def verifyWithTaxAuthority(receipt: ParsedReceipt): UIO[Option[TaxAuthorityConfirmation]] = {
+  private[service] def verifyWithTaxAuthority(receipt: ParsedReceipt): UIO[Option[TaxAuthorityConfirmation]] = {
     val clients = clientProvider.getClientsFor(receipt.country)
     if (clients.isEmpty)
       ZIO.logWarning(s"No tax authority API clients configured for country: ${receipt.country}").as(None)

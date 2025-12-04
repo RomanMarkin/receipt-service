@@ -42,34 +42,40 @@ case class SunatQrParser() extends ReceiptParser {
     DateTimeFormatter.ofPattern("yyyy-MM-dd")
   )
 
-  override def parse(rawData: String): IO[String, ParsedReceipt] = ZIO.attempt {
-    val parts = rawData.split("\\|")
+  override def parse(rawData: String): IO[String, ParsedReceipt] = {
 
-    if (parts.length < 7) throw new Exception("Insufficient data fields")
+    val result: Either[String, ParsedReceipt] = for {
+      parts <- {
+        val p = rawData.split("\\|")
+        if (p.length < 7) Left("Insufficient data fields") else Right(p)
+      }
 
-    val issuerTaxId = parts(0)
-    val docType     = parts(1)
-    val docSeries   = parts(2)
-    val docId       = parts(3)
-    // field #4 (VAT) is ignored
-    val totalStr    = parts(5).replace(",", ".")
-    val dateStr     = parts(6)
+      issuerTaxId = parts(0)
+      docType = parts(1)
+      docSeries = parts(2)
+      docId = parts(3)
+      totalStr = parts(5).replace(",", ".")
+      dateStr = parts(6)
 
-    // Validation Rules
-    if (!issuerTaxId.matches("\\d{11}")) throw new Exception(s"Invalid Issuer Tax Id (RUC): $issuerTaxId")
-    if (docType != "01" && docType != "03") throw new Exception(s"Invalid document type: $docType")
-    if (!docSeries.matches("^[FB]\\d{3}$")) throw new Exception(s"Invalid document series: $docSeries")
-    if (!docId.matches("\\d{8}")) throw new Exception(s"Invalid document number: $docId")
+      _ <- Either.cond(issuerTaxId.matches("\\d{11}"), (), s"Invalid Issuer Tax Id (RUC): $issuerTaxId")
+      _ <- Either.cond(docType == "01" || docType == "03", (), s"Invalid document type: $docType")
+      _ <- Either.cond(docSeries.matches("^[FB]\\d{3}$"), (), s"Invalid document series: $docSeries")
+      _ <- Either.cond(docId.matches("\\d{8}"), (), s"Invalid document number: $docId")
+      
+      total <- Try(totalStr.toDouble).toOption
+        .filter(_ > 0)
+        .toRight("Invalid total amount")
 
-    val total = Try(totalStr.toDouble).getOrElse(throw new Exception("Invalid total amount"))
+      date <- allowedDateFormats.view
+        .map(fmt => Try(LocalDate.parse(dateStr, fmt)).toOption)
+        .find(_.isDefined)
+        .flatten
+        .toRight(s"Invalid date format: $dateStr")
 
-    val date = allowedDateFormats.view.map(fmt => Try(LocalDate.parse(dateStr, fmt)))
-      .find(_.isSuccess)
-      .map(_.get)
-      .getOrElse(throw new Exception(s"Invalid date format: $dateStr"))
-
-    ParsedReceipt(issuerTaxId, docType, docSeries, docId, total, date)
-  }.mapError(_.getMessage) // Java exception => ZIO error string
+    } yield ParsedReceipt(issuerTaxId, docType, docSeries, docId, total, date)
+    
+    ZIO.fromEither(result)
+  }
 }
 
 object SunatQrParser {

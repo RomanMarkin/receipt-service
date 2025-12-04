@@ -17,6 +17,11 @@ object Types {
   opaque type CountryIsoCode = String
   object CountryIsoCode {
     def apply(value: String): CountryIsoCode = value
+
+    def from(value: String): Either[String, CountryIsoCode] = {
+      if (value.matches("^[A-Z]{2}$")) Right(value)
+      else Left(s"Invalid ISO Country Code: $value")
+    }
     extension (a: CountryIsoCode) def toStringValue: String = a
   }
 }
