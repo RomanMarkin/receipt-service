@@ -14,8 +14,8 @@ case class ParsedReceipt(issuerTaxId: String,
                          country: CountryIsoCode = CountryIsoCode("PE")) // Temporary hardcoded to Peru for now
 
 enum ReceiptStatus {
-  case ValidReceiptData
   case InvalidReceiptData
+  case VerificationPending
   case Verified
   case VerificationFailed
 }

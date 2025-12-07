@@ -35,7 +35,7 @@ case class MongoReceiptRepository(db: MongoDatabase) extends ReceiptRepository {
     val oid = org.bson.types.ObjectId.get()
     val doc = Document(
       "_id"      -> oid,
-      "status"   -> ReceiptStatus.ValidReceiptData.toString,
+      "status"   -> ReceiptStatus.VerificationPending.toString,
       "request"  -> createRequestMeta(playerId, rawData),
       "document" -> receipt.toDocument
     )

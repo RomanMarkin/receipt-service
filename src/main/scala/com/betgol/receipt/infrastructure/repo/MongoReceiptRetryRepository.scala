@@ -5,7 +5,7 @@ import com.betgol.receipt.domain.repo.ReceiptRetryRepository
 import com.betgol.receipt.domain.Types.{CountryIsoCode, PlayerId, ReceiptId}
 import org.mongodb.scala.*
 import org.mongodb.scala.model.Indexes
-import org.mongodb.scala.bson.Document
+import org.mongodb.scala.bson.{Document, ObjectId}
 import zio.*
 
 import java.time.Instant
@@ -22,8 +22,9 @@ case class MongoReceiptRetryRepository(db: MongoDatabase) extends ReceiptRetryRe
   }
 
   override def save(receiptId: ReceiptId, playerId: PlayerId, country: CountryIsoCode): IO[ReceiptError, Unit] = {
+    //TODO move this code in MongoMappers
     val doc = Document(
-      "receiptId" -> receiptId.toStringValue,
+      "receiptId" -> new ObjectId(receiptId.toStringValue),
       "playerId"  -> playerId.toStringValue,
       "country"   -> country.toStringValue,
       "addedAt"   -> Date.from(Instant.now()),

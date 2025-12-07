@@ -52,25 +52,26 @@ case class ReceiptServiceLive(parser: ReceiptParser,
     } yield receiptId
 
   private[service] def verifyWithTaxAuthority(receipt: ParsedReceipt): UIO[Option[TaxAuthorityConfirmation]] = {
-    val clients = clientProvider.getClientsFor(receipt.country)
-    if (clients.isEmpty)
-      ZIO.logWarning(s"No tax authority API clients configured for country: ${receipt.country}").as(None)
-    else {
-      val tasks = clients.map { client =>
-        client.verify(receipt)
-          .flatMap {
-            case Some(confirmation) => ZIO.succeed(confirmation)
-            case None => ZIO.fail(s"Receipt not found in tax authority")
-          }
-          .catchAll { e =>
-            ZIO.logWarning(s"Client ${client.providerName} failed: $e") *>
-            ZIO.never //failed tasks should never stop to successfully identify the race winner
-          }
-      }
+    clientProvider.getClientsFor(receipt.country).flatMap { clients =>
+      if (clients.isEmpty)
+        ZIO.logWarning(s"No tax authority API clients configured for country: ${receipt.country}").as(None)
+      else {
+        val tasks = clients.map { client =>
+          client.verify(receipt)
+            .flatMap {
+              case Some(confirmation) => ZIO.succeed(confirmation)
+              case None => ZIO.fail(s"Receipt not found in tax authority")
+            }
+            .catchAll { e =>
+              ZIO.logWarning(s"Client ${client.providerName} failed: $e") *>
+              ZIO.never //failed tasks should never stop to successfully identify the race winner
+            }
+        }
 
-      val head = tasks.head
-      val tail = tasks.tail
-      head.raceAll(tail).timeout(verificationTimeout)
+        val head = tasks.head
+        val tail = tasks.tail
+        head.raceAll(tail).timeout(verificationTimeout)
+      }
     }
   }
 

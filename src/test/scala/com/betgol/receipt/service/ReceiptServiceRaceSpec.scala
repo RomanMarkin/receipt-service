@@ -26,7 +26,7 @@ object ReceiptServiceRaceSpec extends ZIOSpecDefault {
   }
 
   case class MockClientProvider(clients: List[FiscalApiClient]) extends FiscalClientProvider {
-    def getClientsFor(countryIso: CountryIsoCode): List[FiscalApiClient] = clients
+    def getClientsFor(countryIso: CountryIsoCode): UIO[List[FiscalApiClient]] = ZIO.succeed(clients)
   }
 
   val dummyReceipt = ParsedReceipt("123", "01", "F001", "1", 10.0, LocalDate.now(), CountryIsoCode("PE"))
