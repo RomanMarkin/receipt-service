@@ -8,6 +8,12 @@ object Types {
     extension (a: ReceiptId) def toStringValue: String = a
   }
 
+  opaque type ReceiptRetryId = String
+  object ReceiptRetryId {
+    def apply(value: String): ReceiptRetryId = value
+    extension (a: ReceiptRetryId) def toStringValue: String = a
+  }
+
   opaque type PlayerId = String
   object PlayerId {
     def apply(value: String): PlayerId = value

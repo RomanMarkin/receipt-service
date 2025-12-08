@@ -2,7 +2,7 @@ package com.betgol.receipt.infrastructure.repo
 
 import com.betgol.receipt.domain._
 import com.betgol.receipt.domain.Types._
-import org.mongodb.scala.bson.Document
+import org.mongodb.scala.bson.{Document, ObjectId}
 import java.time.{Instant, LocalDate, ZoneId}
 import java.util.Date
 
@@ -42,4 +42,15 @@ object MongoMappers {
     "playerId"    -> playerId.toStringValue,
     "rawData"     -> rawData
   )
+
+  extension (rr: ReceiptRetry) {
+    def toDocument: Document = Document(
+      "receiptId" -> new ObjectId(rr.receiptId.toStringValue),
+      "playerId"  -> rr.playerId.toStringValue,
+      "country"   -> rr.country.toStringValue,
+      "addedAt"   -> Date.from(rr.addedAt),
+      "attempts"  -> rr.attempts,
+      "status"    -> rr.status.toString
+    )
+  }
 }

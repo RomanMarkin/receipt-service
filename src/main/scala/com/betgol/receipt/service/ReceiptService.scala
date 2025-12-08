@@ -45,7 +45,8 @@ case class ReceiptServiceLive(parser: ReceiptParser,
         case None =>
           for {
             _ <- ZIO.logWarning(s"Verification failed or timed out for receipt $receiptId. Queuing for retry.")
-            _ <- receiptRetryRepo.save(receiptId, cmd.playerId, receipt.country).tapError { e => ZIO.logError(e.msg) }
+            rr <- ZIO.succeed(ReceiptRetry(receiptId, cmd.playerId, receipt.country))
+            _ <- receiptRetryRepo.save(rr).tapError { e => ZIO.logError(e.msg) }
             _ <- ZIO.fail(FiscalRecordNotFound(s"Verification pending. Added to retry queue."))
           } yield ()
       }

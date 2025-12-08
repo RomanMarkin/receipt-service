@@ -1,8 +1,8 @@
 package com.betgol.receipt.domain
 
-import com.betgol.receipt.domain.Types.CountryIsoCode
+import com.betgol.receipt.domain.Types.{CountryIsoCode, PlayerId, ReceiptId}
 
-import java.time.{Instant, LocalDate}
+import java.time.{Instant, LocalDate, LocalDateTime}
 
 
 case class ParsedReceipt(issuerTaxId: String,
@@ -18,6 +18,20 @@ enum ReceiptStatus {
   case VerificationPending
   case Verified
   case VerificationFailed
+}
+
+case class ReceiptRetry(receiptId: ReceiptId,
+                        playerId: PlayerId,
+                        attempts: Int,
+                        addedAt: Instant,
+                        country: CountryIsoCode,
+                        status: ReceiptRetryStatus)
+
+object ReceiptRetry {
+  def apply(receiptId: ReceiptId,
+            playerId: PlayerId,
+            country: CountryIsoCode): ReceiptRetry =
+    ReceiptRetry(receiptId = receiptId, playerId = playerId, attempts = 0, addedAt = Instant.now, country = country, status = ReceiptRetryStatus.Pending)
 }
 
 enum ReceiptRetryStatus {

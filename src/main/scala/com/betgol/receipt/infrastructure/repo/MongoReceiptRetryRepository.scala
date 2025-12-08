@@ -1,8 +1,9 @@
 package com.betgol.receipt.infrastructure.repo
 
-import com.betgol.receipt.domain.{ReceiptError, ReceiptRetryStatus, SystemError}
+import com.betgol.receipt.domain.{ReceiptError, ReceiptRetry, ReceiptRetryStatus, SystemError}
 import com.betgol.receipt.domain.repo.ReceiptRetryRepository
-import com.betgol.receipt.domain.Types.{CountryIsoCode, PlayerId, ReceiptId}
+import com.betgol.receipt.domain.Types.{CountryIsoCode, PlayerId, ReceiptId, ReceiptRetryId}
+import com.betgol.receipt.infrastructure.repo.MongoMappers.toDocument
 import org.mongodb.scala.*
 import org.mongodb.scala.model.Indexes
 import org.mongodb.scala.bson.{Document, ObjectId}
@@ -21,20 +22,19 @@ case class MongoReceiptRetryRepository(db: MongoDatabase) extends ReceiptRetryRe
     ZIO.fromFuture(_ => receiptRetries.createIndex(key).toFuture()).unit
   }
 
-  override def save(receiptId: ReceiptId, playerId: PlayerId, country: CountryIsoCode): IO[ReceiptError, Unit] = {
-    //TODO move this code in MongoMappers
-    val doc = Document(
-      "receiptId" -> new ObjectId(receiptId.toStringValue),
-      "playerId"  -> playerId.toStringValue,
-      "country"   -> country.toStringValue,
-      "addedAt"   -> Date.from(Instant.now()),
-      "attempts"  -> 0,
-      "status"    -> ReceiptRetryStatus.Pending.toString
-    )
-    ZIO.fromFuture(_ => receiptRetries.insertOne(doc).toFuture())
-      .mapError { t => SystemError(s"Database failure during save: ${t.getMessage}") }
-      .unit
-  }
+  override def save(rr: ReceiptRetry): IO[ReceiptError, ReceiptRetryId] =
+    for {
+      data <- ZIO.attempt {
+        val oid = org.bson.types.ObjectId.get()
+        val doc = rr.toDocument
+        doc.put("_id", oid)
+        (oid, doc)
+      }.mapError(e => SystemError(s"Document preparation failed: ${e.getMessage}"))
+      (oid, doc) = data
+      
+      _ <- ZIO.fromFuture(_ => receiptRetries.insertOne(doc).toFuture())
+        .mapError(t => SystemError(s"Database failure during save: ${t.getMessage}"))
+    } yield ReceiptRetryId(oid.toHexString)
 }
 
 object MongoReceiptRetryRepository {

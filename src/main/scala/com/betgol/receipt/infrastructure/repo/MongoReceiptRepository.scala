@@ -1,7 +1,7 @@
 package com.betgol.receipt.infrastructure.repo
 
 import com.betgol.receipt.domain.*
-import com.betgol.receipt.domain.Types.*
+import com.betgol.receipt.domain.Types.{ReceiptId, *}
 import com.betgol.receipt.domain.repo.ReceiptRepository
 import com.betgol.receipt.infrastructure.repo.MongoMappers.*
 import org.mongodb.scala.*
@@ -32,32 +32,46 @@ case class MongoReceiptRepository(db: MongoDatabase) extends ReceiptRepository {
   }
 
   override def saveValid(playerId: PlayerId, rawData: String, receipt: ParsedReceipt): IO[ReceiptError, ReceiptId] = {
-    val oid = org.bson.types.ObjectId.get()
-    val doc = Document(
-      "_id"      -> oid,
-      "status"   -> ReceiptStatus.VerificationPending.toString,
-      "request"  -> createRequestMeta(playerId, rawData),
-      "document" -> receipt.toDocument
-    )
-    ZIO.fromFuture(_ => receipts.insertOne(doc).toFuture())
-      .as(ReceiptId(oid.toHexString))
-      .mapError {
-        case e: MongoWriteException if e.getError.getCode == 11000 =>
-          DuplicateReceipt(s"Receipt already processed: ${receipt.issuerTaxId}-${receipt.docType}-${receipt.docSeries}-${receipt.docNumber}")
-        case t: Throwable =>
-          SystemError(s"Database failure during saveValid: ${t.getMessage}")
-      }
+    for {
+      data <- ZIO.attempt {
+        val oid = org.bson.types.ObjectId.get()
+        val doc = Document(
+          "_id" -> oid,
+          "status" -> ReceiptStatus.VerificationPending.toString,
+          "request" -> createRequestMeta(playerId, rawData),
+          "document" -> receipt.toDocument
+        )
+        (oid, doc)
+      }.mapError(t => SystemError(s"Document preparation failed: ${t.getMessage}"))
+      (oid, doc) = data
+      
+      _ <- ZIO.fromFuture(_ => receipts.insertOne(doc).toFuture())
+        .mapError {
+          case e: MongoWriteException if e.getError.getCode == 11000 =>
+            DuplicateReceipt(s"Receipt already processed: ${receipt.issuerTaxId}-${receipt.docType}-${receipt.docSeries}-${receipt.docNumber}")
+          case t: Throwable =>
+            SystemError(s"Database failure during saveValid: ${t.getMessage}")
+        }
+    } yield ReceiptId(oid.toHexString)
   }
 
-  override def saveInvalid(playerId: PlayerId, rawData: String, errorReason: String): IO[ReceiptError, Unit] = {
-    val doc = Document(
-      "status"      -> ReceiptStatus.InvalidReceiptData.toString,
-      "errorDetail" -> errorReason,
-      "request"     -> createRequestMeta(playerId, rawData)
-    )
-    ZIO.fromFuture(_ => receipts.insertOne(doc).toFuture())
-      .unit
-      .mapError { t => SystemError(s"Database failure during saveInvalid: ${t.getMessage}") }
+  override def saveInvalid(playerId: PlayerId, rawData: String, errorReason: String): IO[ReceiptError, ReceiptId] = {
+    for {
+      data <- ZIO.attempt{
+        val oid = org.bson.types.ObjectId.get()
+        val doc = Document(
+          "_id" -> oid,
+          "status" -> ReceiptStatus.InvalidReceiptData.toString,
+          "errorDetail" -> errorReason,
+          "request" -> createRequestMeta(playerId, rawData)
+        )
+        (oid, doc)
+      }.mapError(t => SystemError(s"Document preparation failed: ${t.getMessage}"))
+      (oid, doc) = data
+      
+      _ <- ZIO.fromFuture(_ => receipts.insertOne(doc).toFuture())
+        .mapError {t => SystemError (s"Database failure during saveInvalid: ${t.getMessage}")}
+    } yield ReceiptId(oid.toHexString)
   }
 
   override def updateConfirmed(receiptId: ReceiptId, confirmation: TaxAuthorityConfirmation): IO[ReceiptError, Unit] = {

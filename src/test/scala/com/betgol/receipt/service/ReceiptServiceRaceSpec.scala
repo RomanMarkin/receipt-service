@@ -1,7 +1,7 @@
 package com.betgol.receipt.service
 
 import com.betgol.receipt.domain.*
-import com.betgol.receipt.domain.Types.*
+import com.betgol.receipt.domain.Types.{ReceiptRetryId, *}
 import com.betgol.receipt.domain.clients.*
 import com.betgol.receipt.domain.parsing.ReceiptParser
 import com.betgol.receipt.domain.repo.*
@@ -37,11 +37,11 @@ object ReceiptServiceRaceSpec extends ZIOSpecDefault {
   }
   val mockReceiptRepo = new ReceiptRepository {
     def saveValid(p: PlayerId, r: String, pr: ParsedReceipt) = ZIO.succeed(ReceiptId("id"))
-    def saveInvalid(p: PlayerId, r: String, e: String) = ZIO.unit
+    def saveInvalid(p: PlayerId, r: String, e: String) = ZIO.succeed(ReceiptId("id"))
     def updateConfirmed(id: ReceiptId, c: TaxAuthorityConfirmation) = ZIO.unit
   }
   val mockReceiptRetryRepo = new ReceiptRetryRepository {
-    def save(id: ReceiptId, p: PlayerId, c: CountryIsoCode) = ZIO.unit
+    def save(rr: ReceiptRetry) = ZIO.succeed(ReceiptRetryId("id"))
   }
 
   def buildService(clients: List[FiscalApiClient]) = {
