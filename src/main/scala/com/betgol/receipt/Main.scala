@@ -2,7 +2,9 @@ package com.betgol.receipt
 
 import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.config.AppConfig
-import com.betgol.receipt.infrastructure.clients.{ApiPeruClient, FactilizaClient, HardcodedFiscalClientProvider}
+import com.betgol.receipt.infrastructure.clients.apiperu.ApiPeruClient
+import com.betgol.receipt.infrastructure.clients.{FactilizaClient, HardcodedFiscalClientProvider}
+import com.betgol.receipt.infrastructure.database.MongoInfrastructure
 import com.betgol.receipt.infrastructure.parsing.SunatQrParser
 import com.betgol.receipt.infrastructure.repo.{MongoReceiptRepository, MongoReceiptRetryRepository}
 import com.betgol.receipt.service.ReceiptServiceLive
@@ -18,27 +20,22 @@ object Main extends ZIOAppDefault {
   override val bootstrap: ZLayer[Any, Config.Error, Unit] =
     Runtime.setConfigProvider(TypesafeConfigProvider.fromResourcePath())
 
-  // DB connection layer
-  private val mongoLayer = ZLayer.scoped {
-    for {
-      config <- ZIO.config(AppConfig.config)
-      client <- ZIO.fromAutoCloseable(ZIO.attempt {
-        val c = config.mongo
-        val uri = s"mongodb://${c.user}:${c.pass}@${c.host}:${c.port}/${c.dbName}?authSource=${c.dbName}"
-        MongoClient(uri)
-      })
-    } yield client.getDatabase(config.mongo.dbName)
-  }
 
   // Compose all layers
-  private val appLayer =
-    mongoLayer >+>
+  private val appLayer = {
+    //-- DB and repos
+    (AppConfig.mongo >+> MongoInfrastructure.live) >+>
     (MongoReceiptRepository.layer ++ MongoReceiptRetryRepository.layer) ++
-    SunatQrParser.layer >+>
+    //--- Tax auth api clients
+    (AppConfig.apiPeru ++ Client.default) >+>
     (ApiPeruClient.layer ++ FactilizaClient.layer) >+>
     HardcodedFiscalClientProvider.layer >+>
+    //--- QR parsers
+    SunatQrParser.layer >+>
+    //--- Services
     ReceiptServiceLive.layer ++
     Server.default
+  }
 
   override def run: ZIO[Any, Any, Any] = {
     Server.serve(ReceiptRoutes.routes)

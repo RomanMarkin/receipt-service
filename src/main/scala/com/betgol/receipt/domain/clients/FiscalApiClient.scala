@@ -12,7 +12,7 @@ trait FiscalApiClient {
    * Returns:
    * - Some(confirmation): If found and valid.
    * - None: If the provider responded "Not Found".
-   * - Fail(Throwable): If network error or 5xx response.
+   * - Fail(FiscalApiError): If serialization/deserialization or network/5xx errors.
    */
-  def verify(receipt: ParsedReceipt): IO[Throwable, Option[TaxAuthorityConfirmation]]
+  def verify(receipt: ParsedReceipt): IO[FiscalApiError, Option[TaxAuthorityConfirmation]]
 }

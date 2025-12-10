@@ -2,6 +2,7 @@ package com.betgol.receipt.infrastructure.clients
 
 import com.betgol.receipt.domain.Types.CountryIsoCode
 import com.betgol.receipt.domain.clients.{FiscalApiClient, FiscalClientProvider}
+import com.betgol.receipt.infrastructure.clients.apiperu.ApiPeruClient
 import zio.{UIO, ZIO, ZLayer}
 
 

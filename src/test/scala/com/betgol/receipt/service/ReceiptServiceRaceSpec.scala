@@ -20,7 +20,7 @@ object ReceiptServiceRaceSpec extends ZIOSpecDefault {
                                result: Option[TaxAuthorityConfirmation]) extends FiscalApiClient {
     override def providerName: String = name
 
-    override def verify(receipt: ParsedReceipt): IO[Throwable, Option[TaxAuthorityConfirmation]] = {
+    override def verify(receipt: ParsedReceipt): IO[FiscalApiError, Option[TaxAuthorityConfirmation]] = {
       ZIO.sleep(delay) *> ZIO.succeed(result) //ZIO.sleep() is using ZIO Clock, which is controlled by TestClock
     }
   }

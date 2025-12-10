@@ -1,7 +1,7 @@
 package com.betgol.receipt.config
 
-import zio._
-import zio.config._
+import zio.*
+import zio.config.*
 import zio.config.magnolia.deriveConfig
 
 
@@ -13,8 +13,19 @@ case class MongoConfig(
   dbName: String
 )
 
-case class AppConfig(mongo: MongoConfig)
+case class ApiPeruConfig(token: String)
+
+case class AppConfig(mongo: MongoConfig, apiPeru: ApiPeruConfig)
 
 object AppConfig {
   val config: Config[AppConfig] = deriveConfig[AppConfig]
+
+  val live: ZLayer[Any, Config.Error, AppConfig] =
+    ZLayer.fromZIO(ZIO.config(config))
+
+  val mongo: ZLayer[Any, Config.Error, MongoConfig] =
+    live.project(_.mongo)
+
+  val apiPeru: ZLayer[Any, Config.Error, ApiPeruConfig] =
+    live.project(_.apiPeru)
 }
