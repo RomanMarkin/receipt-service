@@ -48,7 +48,7 @@ case class MongoReceiptRepository(db: MongoDatabase) extends ReceiptRepository {
       _ <- ZIO.fromFuture(_ => receipts.insertOne(doc).toFuture())
         .mapError {
           case e: MongoWriteException if e.getError.getCode == 11000 =>
-            DuplicateReceipt(s"Receipt already processed: ${receipt.issuerTaxId}-${receipt.docType}-${receipt.docSeries}-${receipt.docNumber}")
+            DuplicateReceipt(s"Receipt already processed: issuerTaxId = ${receipt.issuerTaxId}, docType: ${receipt.docType}, docNumber: ${receipt.docSeries}-${receipt.docNumber}")
           case t: Throwable =>
             SystemError(s"Database failure during saveValid: ${t.getMessage}")
         }

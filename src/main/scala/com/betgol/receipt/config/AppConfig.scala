@@ -15,7 +15,14 @@ case class MongoConfig(
 
 case class ApiPeruConfig(token: String)
 
-case class AppConfig(mongo: MongoConfig, apiPeru: ApiPeruConfig)
+case class FactilizaConfig(token: String)
+
+case class JsonPeConfig(token: String)
+
+case class AppConfig(mongo: MongoConfig,
+                     apiPeru: ApiPeruConfig,
+                     factiliza: FactilizaConfig,
+                     jsonPe: JsonPeConfig)
 
 object AppConfig {
   val config: Config[AppConfig] = deriveConfig[AppConfig]
@@ -28,4 +35,10 @@ object AppConfig {
 
   val apiPeru: ZLayer[Any, Config.Error, ApiPeruConfig] =
     live.project(_.apiPeru)
+
+  val factiliza: ZLayer[Any, Config.Error, FactilizaConfig] =
+    live.project(_.factiliza)
+
+  val jsonPe: ZLayer[Any, Config.Error, JsonPeConfig] =
+    live.project(_.jsonPe)
 }

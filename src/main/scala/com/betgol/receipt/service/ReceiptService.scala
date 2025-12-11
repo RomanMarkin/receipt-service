@@ -39,7 +39,7 @@ case class ReceiptServiceLive(parser: ReceiptParser,
         case Some(confirmation) =>
           for {
             _ <- receiptRepo.updateConfirmed(receiptId, confirmation).tapError { e => ZIO.logError(e.msg) }
-            _ <- ZIO.logInfo(s"Receipt verified by ${confirmation.apiProvider}")
+            _ <- ZIO.logInfo(s"Receipt verified by [${confirmation.apiProvider}]")
           } yield ()
 
         case None =>
@@ -61,10 +61,15 @@ case class ReceiptServiceLive(parser: ReceiptParser,
           client.verify(receipt)
             .flatMap {
               case Some(confirmation) => ZIO.succeed(confirmation)
-              case None => ZIO.fail(s"Receipt not found in tax authority")
+              case None => ZIO.fail(Exception(s"[${client.providerName}] Receipt not found in tax authority"))
             }
             .catchAll { e =>
-              ZIO.logWarning(s"Client ${client.providerName} failed: $e") *>
+              ZIO.logWarning {
+                val full = Option(e.getCause)
+                  .map(c => s"${e.getMessage}; cause: ${c.getMessage}")
+                  .getOrElse(e.getMessage)
+
+                s"[${client.providerName}] Failed to verify receipt: $full"} *>
               ZIO.never //failed tasks should never stop to successfully identify the race winner
             }
         }
