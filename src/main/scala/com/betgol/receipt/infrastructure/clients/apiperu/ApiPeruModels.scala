@@ -1,6 +1,6 @@
 package com.betgol.receipt.infrastructure.clients.apiperu
 
-import com.betgol.receipt.domain.ParsedReceipt
+import com.betgol.receipt.domain.FiscalDocument
 import zio.*
 import zio.json.*
 
@@ -13,20 +13,20 @@ case class ApiPeruRequest(ruc_emisor: String,
                           serie_documento: String,
                           numero_documento: String,
                           fecha_de_emision: String,
-                          total: Double)
+                          total: BigDecimal)
 
 object ApiPeruRequest {
   implicit val encoder: JsonEncoder[ApiPeruRequest] = DeriveJsonEncoder.gen[ApiPeruRequest]
 
   private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-  def from(r: ParsedReceipt): ApiPeruRequest =
+  def from(r: FiscalDocument): ApiPeruRequest =
     ApiPeruRequest(
       ruc_emisor = r.issuerTaxId,
       codigo_tipo_documento = r.docType,
-      serie_documento = r.docSeries,
-      numero_documento = r.docNumber,
-      fecha_de_emision = r.date.format(dateFormat),
+      serie_documento = r.series,
+      numero_documento = r.number,
+      fecha_de_emision = r.issuedAt.format(dateFormat),
       total = r.totalAmount
     )
 }

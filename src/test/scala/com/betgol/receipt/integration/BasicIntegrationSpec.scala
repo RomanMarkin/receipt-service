@@ -16,11 +16,11 @@ trait BasicIntegrationSpec extends ZIOSpecDefault {
   def buildRequest(body: String): Request =
     Request.post(URL(Path.root / "processReceipt"), Body.fromString(body))
 
-  def makeReceipt(issuerTaxId: String = "12345678901",
-                  docType: String = "01",
-                  docSeries: String = "F001",
-                  docNumber: String = "00001234",
-                  total: String = "100.00",
-                  date: String = "2025-01-01"): String =
+  def makeReceiptData(issuerTaxId: String = "12345678901",
+                      docType: String = "01",
+                      docSeries: String = "F001",
+                      docNumber: String = "00001234",
+                      total: String = "100.00",
+                      date: String = "2025-01-01"): String =
     s"$issuerTaxId|$docType|$docSeries|$docNumber|10.00|$total|$date|6|hash"
 }

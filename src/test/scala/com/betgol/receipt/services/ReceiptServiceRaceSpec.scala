@@ -1,13 +1,16 @@
-package com.betgol.receipt.service
+package com.betgol.receipt.services
 
 import com.betgol.receipt.domain.*
-import com.betgol.receipt.domain.Types.{ReceiptRetryId, *}
+import com.betgol.receipt.domain.Ids.{SubmissionId, VerificationRetryId, *}
 import com.betgol.receipt.domain.clients.*
-import com.betgol.receipt.domain.parsing.ReceiptParser
-import com.betgol.receipt.domain.repo.*
+import com.betgol.receipt.domain.parsers.ReceiptParser
+import com.betgol.receipt.domain.repos.*
+import com.betgol.receipt.domain.services.{BonusEvaluator, IdGenerator}
+import com.betgol.receipt.infrastructure.services.{HardcodedBonusEvaluator, UuidV7IdGenerator}
+import com.betgol.receipt.mocks.clients.MockBettingXmlApiClient
+import zio.*
 import zio.test.*
 import zio.test.Assertion.*
-import zio.*
 
 import java.time.{Instant, LocalDate}
 
@@ -17,45 +20,54 @@ object ReceiptServiceRaceSpec extends ZIOSpecDefault {
 
   case class DelayedMockClient(name: String,
                                delay: Duration,
-                               result: Option[TaxAuthorityConfirmation]) extends FiscalApiClient {
+                               result: Option[VerificationConfirmation]) extends FiscalApiClient {
     override def providerName: String = name
 
-    override def verify(receipt: ParsedReceipt): IO[FiscalApiError, Option[TaxAuthorityConfirmation]] = {
+    override def verify(receipt: FiscalDocument): IO[FiscalApiError, Option[VerificationConfirmation]] = {
       ZIO.sleep(delay) *> ZIO.succeed(result) //ZIO.sleep() is using ZIO Clock, which is controlled by TestClock
     }
   }
 
   case class MockClientProvider(clients: List[FiscalApiClient]) extends FiscalClientProvider {
-    def getClientsFor(countryIso: CountryIsoCode): UIO[List[FiscalApiClient]] = ZIO.succeed(clients)
+    def getClientsFor(countryIso: CountryCode): UIO[List[FiscalApiClient]] = ZIO.succeed(clients)
   }
 
-  val dummyReceipt = ParsedReceipt("123", "01", "F001", "1", 10.0, LocalDate.now(), CountryIsoCode("PE"))
+  val dummyReceipt = FiscalDocument("123", "01", "F001", "1", 10.0, LocalDate.now(), CountryCode("PE"))
 
   // Mock dependencies
   val mockParser = new ReceiptParser {
     def parse(raw: String) = ZIO.succeed(dummyReceipt)
   }
-  val mockReceiptRepo = new ReceiptRepository {
-    def saveValid(p: PlayerId, r: String, pr: ParsedReceipt) = ZIO.succeed(ReceiptId("id"))
-    def saveInvalid(p: PlayerId, r: String, e: String) = ZIO.succeed(ReceiptId("id"))
-    def updateConfirmed(id: ReceiptId, c: TaxAuthorityConfirmation) = ZIO.unit
+  val mockReceiptSubmissionRepo = new ReceiptSubmissionRepository {
+    override def add(rs: ReceiptSubmission): IO[ReceiptSubmissionError, SubmissionId] = ZIO.succeed(SubmissionId("id"))
+    override def updateConfirmed(submissionId: SubmissionId, verification: VerificationConfirmation): IO[ReceiptSubmissionError, Unit] = ZIO.unit
   }
-  val mockReceiptRetryRepo = new ReceiptRetryRepository {
-    def save(rr: ReceiptRetry) = ZIO.succeed(ReceiptRetryId("id"))
+  val mockVerificationRetryRepo = new VerificationRetryRepository {
+    def add(vr: VerificationRetry) = ZIO.succeed(VerificationRetryId("id"))
+  }
+  val mockBonusAssignmentRepo = new BonusAssignmentRepository {
+    override def save(assignment: BonusAssignment): IO[BonusAssignmentError, Unit] = ZIO.unit
+    override def updateStatus(id: BonusAssignmentId, status: BonusAssignmentStatus, error: Option[String]): IO[BonusAssignmentError, Unit] = ZIO.unit
   }
 
-  def buildService(clients: List[FiscalApiClient]) = {
-    ZLayer.succeed(mockParser) ++
-    ZLayer.succeed(mockReceiptRepo) ++
-    ZLayer.succeed(mockReceiptRetryRepo) ++
-    ZLayer.succeed(MockClientProvider(clients)) >>>
-    ZLayer.fromFunction(ReceiptServiceLive.apply _)
+  def buildService(clients: List[FiscalApiClient]): ZLayer[Any, Nothing, ReceiptServiceLive] = {
+    val dependencies =
+      ZLayer.succeed(mockParser) ++
+        ZLayer.succeed(mockReceiptSubmissionRepo) ++
+        ZLayer.succeed(mockVerificationRetryRepo) ++
+        ZLayer.succeed(mockBonusAssignmentRepo) ++
+        ZLayer.succeed(MockClientProvider(clients)) ++
+        ZLayer.succeed(new MockBettingXmlApiClient()) ++
+        ZLayer.succeed(new UuidV7IdGenerator()) ++
+        ZLayer.succeed(HardcodedBonusEvaluator)
+
+    dependencies >>> ZLayer.fromFunction(ReceiptServiceLive.apply _)
   }
 
   override def spec = suite("ReceiptService Racing Logic")(
 
     test("Scenario 1: Fastest client wins") {
-      val fastConfirmation = TaxAuthorityConfirmation("Fast", Instant.now(), "1", "OK")
+      val fastConfirmation = VerificationConfirmation("Fast", Instant.now(), None, "OK")
       val slowConfirmation = fastConfirmation.copy(apiProvider = "Slow")
 
       val clientFast = DelayedMockClient("Fast", 1.second, Some(fastConfirmation))
@@ -70,7 +82,7 @@ object ReceiptServiceRaceSpec extends ZIOSpecDefault {
     },
 
     test("Scenario 2: If first client fails, second client wins") {
-      val slowConfirmation = TaxAuthorityConfirmation("SlowButSuccess", Instant.now(), "2", "OK")
+      val slowConfirmation = VerificationConfirmation("SlowButSuccess", Instant.now(), None, "OK")
 
       val clientFastFail = DelayedMockClient("FastFail", 100.millis, None)
       val clientSlowSuccess = DelayedMockClient("SlowSuccess", 2.seconds, Some(slowConfirmation))

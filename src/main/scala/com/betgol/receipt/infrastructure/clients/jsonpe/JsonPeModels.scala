@@ -1,6 +1,6 @@
 package com.betgol.receipt.infrastructure.clients.jsonpe
 
-import com.betgol.receipt.domain.ParsedReceipt
+import com.betgol.receipt.domain.FiscalDocument
 import zio.*
 import zio.json.*
 
@@ -20,14 +20,14 @@ object JsonPeRequest {
 
   private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
-  def from(r: ParsedReceipt): JsonPeRequest =
+  def from(r: FiscalDocument): JsonPeRequest =
     JsonPeRequest(
       ruc_emisor = r.issuerTaxId,
       codigo_tipo_documento = r.docType,
-      serie_documento = r.docSeries,
-      numero_documento = r.docNumber,
-      fecha_de_emision = r.date.format(dateFormat),
-      total = String.format(java.util.Locale.US, "%.2f", Double.box(r.totalAmount))
+      serie_documento = r.series,
+      numero_documento = r.number,
+      fecha_de_emision = r.issuedAt.format(dateFormat),
+      total = f"${r.totalAmount}%.2f"
     )
 }
 

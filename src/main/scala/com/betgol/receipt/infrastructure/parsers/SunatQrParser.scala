@@ -1,7 +1,7 @@
-package com.betgol.receipt.infrastructure.parsing
+package com.betgol.receipt.infrastructure.parsers
 
-import com.betgol.receipt.domain.ParsedReceipt
-import com.betgol.receipt.domain.parsing.ReceiptParser
+import com.betgol.receipt.domain.FiscalDocument
+import com.betgol.receipt.domain.parsers.ReceiptParser
 import zio.{IO, ULayer, ZIO, ZLayer}
 
 import java.time.LocalDate
@@ -42,9 +42,9 @@ case class SunatQrParser() extends ReceiptParser {
     DateTimeFormatter.ofPattern("yyyy-MM-dd")
   )
 
-  override def parse(rawData: String): IO[String, ParsedReceipt] = {
+  override def parse(rawData: String): IO[String, FiscalDocument] = {
 
-    val result: Either[String, ParsedReceipt] = for {
+    val result: Either[String, FiscalDocument] = for {
       parts <- {
         val p = rawData.split("\\|")
         if (p.length < 7) Left("Insufficient data fields") else Right(p)
@@ -72,7 +72,7 @@ case class SunatQrParser() extends ReceiptParser {
         .flatten
         .toRight(s"Invalid date format: $dateStr")
 
-    } yield ParsedReceipt(issuerTaxId, docType, docSeries, docId, total, date)
+    } yield FiscalDocument(issuerTaxId, docType, docSeries, docId, total, date)
     
     ZIO.fromEither(result)
   }

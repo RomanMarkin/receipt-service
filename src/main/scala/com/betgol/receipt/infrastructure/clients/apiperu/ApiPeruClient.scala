@@ -2,7 +2,7 @@ package com.betgol.receipt.infrastructure.clients.apiperu
 
 import com.betgol.receipt.config.ApiPeruConfig
 import com.betgol.receipt.domain.clients.*
-import com.betgol.receipt.domain.{ParsedReceipt, TaxAuthorityConfirmation}
+import com.betgol.receipt.domain.{FiscalDocument, VerificationConfirmation}
 import zio.*
 import zio.http.*
 import zio.json.*
@@ -12,7 +12,7 @@ case class ApiPeruClient(client: Client, apiUrl: URL, apiKey: String) extends Fi
 
   override val providerName: String = "ApiPeru"
 
-  override def verify(r: ParsedReceipt): IO[FiscalApiError, Option[TaxAuthorityConfirmation]] = {
+  override def verify(r: FiscalDocument): IO[FiscalApiError, Option[VerificationConfirmation]] = {
     for {
 
       jsonPayload <- ZIO.attempt {
@@ -35,12 +35,12 @@ case class ApiPeruClient(client: Client, apiUrl: URL, apiKey: String) extends Fi
       apiResponse <- ZIO.fromEither(responseBody.fromJson[ApiPeruResponse])
         .mapError(e => FiscalApiDeserializationError(s"[$providerName] Invalid JSON response. Body: $responseBody. Error: $e"))
 
-      result <- validateStatus(apiResponse, r.docNumber)
+      result <- validateStatus(apiResponse, r.number)
 
     } yield result
   }
 
-  private def validateStatus(resp: ApiPeruResponse, docNumber: String): UIO[Option[TaxAuthorityConfirmation]] = {
+  private def validateStatus(resp: ApiPeruResponse, docNumber: String): UIO[Option[VerificationConfirmation]] = {
     if (!resp.success || resp.data.isEmpty) {
       ZIO.logWarning(s"[$providerName] API returned failure or no data. Msg: ${resp.message.getOrElse("")}, Response: ${resp.toJsonPretty}") *>
       ZIO.none
@@ -54,10 +54,10 @@ case class ApiPeruClient(client: Client, apiUrl: URL, apiKey: String) extends Fi
       // "2" = Anulado (Annulled)
       if (data.estadoCp == "1") {
         Clock.instant.map { now =>
-          Some(TaxAuthorityConfirmation(
+          Some(VerificationConfirmation(
             apiProvider = providerName,
-            confirmationTime = now,
-            verificationId = s"APIPERU-${java.util.UUID.randomUUID()}",
+            confirmedAt = now,
+            externalId = None,
             statusMessage = description
           ))
         }

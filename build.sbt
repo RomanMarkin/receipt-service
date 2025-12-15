@@ -17,7 +17,8 @@ libraryDependencies ++= Seq(
   "dev.zio"       %% "zio-config-typesafe" % "4.0.6",
   "dev.zio"       %% "zio-config-magnolia" % "4.0.6",     // automatic config derivation
   "org.mongodb.scala" %% "mongo-scala-driver" % "4.11.0" cross CrossVersion.for3Use2_13,
-  "ch.qos.logback" % "logback-classic"     % "1.5.21",
+  "ch.qos.logback" % "logback-classic"     % "1.5.22",
+  "com.github.f4b6a3" % "uuid-creator"     % "6.1.1",
 
   // Test Dependencies
   "dev.zio"       %% "zio-test"                       % "2.1.23" % Test,
@@ -28,4 +29,4 @@ libraryDependencies ++= Seq(
 )
 
 testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
-Test / fork := true
+Test / fork := false

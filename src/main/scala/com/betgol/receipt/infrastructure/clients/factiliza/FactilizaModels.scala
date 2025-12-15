@@ -1,6 +1,6 @@
 package com.betgol.receipt.infrastructure.clients.factiliza
 
-import com.betgol.receipt.domain.ParsedReceipt
+import com.betgol.receipt.domain.FiscalDocument
 import zio.*
 import zio.json.*
 
@@ -20,14 +20,14 @@ object FactilizaRequest {
 
   private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
-  def from(r: ParsedReceipt): FactilizaRequest =
+  def from(r: FiscalDocument): FactilizaRequest =
     FactilizaRequest(
       ruc_emisor = r.issuerTaxId,
       codigo_tipo_documento = r.docType,
-      serie_documento = r.docSeries,
-      numero_documento = r.docNumber,
-      fecha_emision = r.date.format(dateFormat),
-      total = String.format(java.util.Locale.US, "%.2f", Double.box(r.totalAmount))
+      serie_documento = r.series,
+      numero_documento = r.number,
+      fecha_emision = r.issuedAt.format(dateFormat),
+      total = f"${r.totalAmount}%.2f"
     )
 }
 

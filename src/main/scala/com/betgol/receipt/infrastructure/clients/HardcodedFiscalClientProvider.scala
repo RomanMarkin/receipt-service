@@ -1,6 +1,6 @@
 package com.betgol.receipt.infrastructure.clients
 
-import com.betgol.receipt.domain.Types.CountryIsoCode
+import com.betgol.receipt.domain.Ids.CountryCode
 import com.betgol.receipt.domain.clients.{FiscalApiClient, FiscalClientProvider}
 import com.betgol.receipt.infrastructure.clients.apiperu.ApiPeruClient
 import com.betgol.receipt.infrastructure.clients.factiliza.FactilizaClient
@@ -12,9 +12,9 @@ case class HardcodedFiscalClientProvider(apiPeru: ApiPeruClient,
                                          factiliza: FactilizaClient,
                                          jsonPe: JsonPeClient) extends FiscalClientProvider {
 
-  override def getClientsFor(countryIso: CountryIsoCode): UIO[List[FiscalApiClient]] =
+  override def getClientsFor(countryIso: CountryCode): UIO[List[FiscalApiClient]] =
     ZIO.succeed {
-      countryIso.toStringValue match {
+      countryIso.value match {
         case "PE" => List(
           //apiPeru,
           //factiliza,

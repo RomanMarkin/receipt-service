@@ -4,12 +4,14 @@ import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.config.AppConfig
 import com.betgol.receipt.infrastructure.clients.HardcodedFiscalClientProvider
 import com.betgol.receipt.infrastructure.clients.apiperu.ApiPeruClient
+import com.betgol.receipt.infrastructure.clients.betting.BettingXmlApiClient
 import com.betgol.receipt.infrastructure.clients.factiliza.FactilizaClient
 import com.betgol.receipt.infrastructure.clients.jsonpe.JsonPeClient
 import com.betgol.receipt.infrastructure.database.MongoInfrastructure
-import com.betgol.receipt.infrastructure.parsing.SunatQrParser
-import com.betgol.receipt.infrastructure.repo.{MongoReceiptRepository, MongoReceiptRetryRepository}
-import com.betgol.receipt.service.ReceiptServiceLive
+import com.betgol.receipt.infrastructure.parsers.SunatQrParser
+import com.betgol.receipt.infrastructure.repos.mongo.{MongoReceiptSubmissionRepository, MongoVerificationRetryRepository, MongoBonusAssignmentRepository}
+import com.betgol.receipt.infrastructure.services.{UuidV7IdGenerator, HardcodedBonusEvaluator}
+import com.betgol.receipt.services.ReceiptServiceLive
 import org.mongodb.scala.*
 import zio.*
 import zio.config.typesafe.TypesafeConfigProvider
@@ -28,14 +30,15 @@ object Main extends ZIOAppDefault {
   private val appLayer = {
     //-- DB and repos
     (AppConfig.mongo >+> MongoInfrastructure.live) >+>
-    (MongoReceiptRepository.layer ++ MongoReceiptRetryRepository.layer) ++
-    //--- Tax auth api clients
-    (AppConfig.apiPeru ++ AppConfig.factiliza ++ AppConfig.jsonPe ++ Client.default) >+>
-    (ApiPeruClient.layer ++ FactilizaClient.layer ++ JsonPeClient.layer) >+>
+    (MongoReceiptSubmissionRepository.layer ++ MongoVerificationRetryRepository.layer ++ MongoBonusAssignmentRepository.layer) ++
+    //--- API clients
+    (AppConfig.betting ++ AppConfig.apiPeru ++ AppConfig.factiliza ++ AppConfig.jsonPe ++ Client.default) >+>
+    (BettingXmlApiClient.layer ++ ApiPeruClient.layer ++ FactilizaClient.layer ++ JsonPeClient.layer) >+>
     HardcodedFiscalClientProvider.layer >+>
     //--- QR parsers
     SunatQrParser.layer >+>
     //--- Services
+    (UuidV7IdGenerator.layer ++ HardcodedBonusEvaluator.layer) >+>
     ReceiptServiceLive.layer ++
     Server.default
   }

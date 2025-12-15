@@ -2,7 +2,7 @@ package com.betgol.receipt.integration.specs
 
 import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.api.dto.ReceiptRequest
-import com.betgol.receipt.integration.specs.BusinessLogicSpec.makeReceipt
+import com.betgol.receipt.integration.specs.BusinessLogicSpec.makeReceiptData
 import com.betgol.receipt.integration.{BasicIntegrationSpec, SharedTestLayer}
 import zio.*
 import zio.http.*
@@ -37,7 +37,7 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
     test("Rejects invalid issuer tax id (RUC) formats (letters or wrong length)") {
       check(Gen.string.filter(s => s.length != 11 || !s.forall(_.isDigit))) { invalidRuc =>
-        val payload = ReceiptRequest(makeReceipt(issuerTaxId = invalidRuc), "player-1").toJson
+        val payload = ReceiptRequest(makeReceiptData(issuerTaxId = invalidRuc), "player-1").toJson
         val req = buildRequest(payload)
 
         for {
@@ -57,7 +57,7 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
           .filter(s => !s.equals("01") && !s.equals("03")), // 2 digits, but not 01 or 03
       )
       check(invalidDocTypeGen) { invalidDocType =>
-        val payload = ReceiptRequest(makeReceipt(docType = invalidDocType), "player-1").toJson
+        val payload = ReceiptRequest(makeReceiptData(docType = invalidDocType), "player-1").toJson
         val req = buildRequest(payload)
 
         for {
@@ -83,7 +83,7 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
       )
 
       check(invalidSeriesGen) { invalidDocSeries =>
-        val payload = ReceiptRequest(makeReceipt(docSeries = invalidDocSeries), "player-1").toJson
+        val payload = ReceiptRequest(makeReceiptData(docSeries = invalidDocSeries), "player-1").toJson
         val req = buildRequest(payload)
 
         for {
@@ -98,7 +98,7 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
     test("Rejects invalid document number formats (letters or wrong length)") {
       check(Gen.string.filter(s => s.length != 8 || !s.forall(_.isDigit))) { invalidDocNumber =>
-        val payload = ReceiptRequest(makeReceipt(docNumber = invalidDocNumber), "player-1").toJson
+        val payload = ReceiptRequest(makeReceiptData(docNumber = invalidDocNumber), "player-1").toJson
         val req = buildRequest(payload)
 
         for {
@@ -114,7 +114,7 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
     test("Rejects invalid Total Amount") {
       val invalidAmounts = Gen.fromIterable(List("2.39.13", "ABC", "-50.00"))
       check(invalidAmounts) { badAmount =>
-        val payload = ReceiptRequest(makeReceipt(total = badAmount), "player-1").toJson
+        val payload = ReceiptRequest(makeReceiptData(total = badAmount), "player-1").toJson
         val req = buildRequest(payload)
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
@@ -132,7 +132,7 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
         Gen.alphaNumericStringBounded(1, 10) // random string
       )
       check(invalidDateGen) { invalidDate =>
-        val payload = ReceiptRequest(makeReceipt(date = invalidDate), "player-1").toJson
+        val payload = ReceiptRequest(makeReceiptData(date = invalidDate), "player-1").toJson
         val req = buildRequest(payload)
 
         for {
@@ -151,7 +151,8 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
         allowedPattern <- Gen.elements("yyyy-MM-dd", "dd/MM/yyyy")
         validDate = date.format(DateTimeFormatter.ofPattern(allowedPattern))
         validIssuerTaxId <- Gen.stringN(11)(Gen.numericChar)
-        validReceipt = makeReceipt(issuerTaxId = validIssuerTaxId, date = validDate)
+        validDocNumber <- Gen.int(10000000, 99999999).map(_.toString)
+        validReceipt = makeReceiptData(issuerTaxId = validIssuerTaxId, date = validDate, docNumber = validDocNumber)
       } yield validReceipt
 
       check(validReceiptGen) { validReceipt =>

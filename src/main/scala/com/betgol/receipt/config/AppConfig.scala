@@ -19,7 +19,10 @@ case class FactilizaConfig(token: String)
 
 case class JsonPeConfig(token: String)
 
+case class BettingConfig(token: String)
+
 case class AppConfig(mongo: MongoConfig,
+                     betting: BettingConfig,
                      apiPeru: ApiPeruConfig,
                      factiliza: FactilizaConfig,
                      jsonPe: JsonPeConfig)
@@ -32,6 +35,9 @@ object AppConfig {
 
   val mongo: ZLayer[Any, Config.Error, MongoConfig] =
     live.project(_.mongo)
+
+  val betting: ZLayer[Any, Config.Error, BettingConfig] =
+    live.project(_.betting)
 
   val apiPeru: ZLayer[Any, Config.Error, ApiPeruConfig] =
     live.project(_.apiPeru)

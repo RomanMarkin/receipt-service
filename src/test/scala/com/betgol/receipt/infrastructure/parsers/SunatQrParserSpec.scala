@@ -1,10 +1,10 @@
-package com.betgol.receipt.infrastructure.parsing
+package com.betgol.receipt.infrastructure.parsers
 
 import zio._
 import zio.test._
 import zio.test.Assertion._
-import com.betgol.receipt.domain.ParsedReceipt
-import com.betgol.receipt.domain.Types.CountryIsoCode
+import com.betgol.receipt.domain.FiscalDocument
+import com.betgol.receipt.domain.Ids.CountryCode
 import java.time.LocalDate
 
 
@@ -25,11 +25,11 @@ object SunatQrParserSpec extends ZIOSpecDefault {
         } yield assertTrue(
           result.issuerTaxId == "20503840121",
           result.docType == "01",
-          result.docSeries == "F756",
-          result.docNumber == "00068781",
+          result.series == "F756",
+          result.number == "00068781",
           result.totalAmount == 239.13,
-          result.date == LocalDate.of(2025, 2, 22),
-          result.country == CountryIsoCode("PE")
+          result.issuedAt == LocalDate.of(2025, 2, 22),
+          result.country == CountryCode("PE")
         )
       },
 
@@ -39,7 +39,7 @@ object SunatQrParserSpec extends ZIOSpecDefault {
         for {
           result <- parser.parse(input)
         } yield assertTrue(
-          result.date == LocalDate.of(2025, 2, 22)
+          result.issuedAt == LocalDate.of(2025, 2, 22)
         )
       },
 
@@ -58,7 +58,7 @@ object SunatQrParserSpec extends ZIOSpecDefault {
         for {
           result <- parser.parse(input)
         } yield assertTrue(
-          result.docNumber == "00001234"
+          result.number == "00001234"
         )
       }
     ),

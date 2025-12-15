@@ -1,7 +1,7 @@
 package com.betgol.receipt.api.dto
 
-import com.betgol.receipt.domain.ProcessReceiptCommand
-import com.betgol.receipt.domain.Types.PlayerId
+import com.betgol.receipt.domain.SubmitReceipt
+import com.betgol.receipt.domain.Ids.PlayerId
 import zio.json.*
 
 
@@ -10,7 +10,7 @@ case class ReceiptRequest(receiptData: String, playerId: String)
 object ReceiptRequest {
   implicit val codec: JsonCodec[ReceiptRequest] = DeriveJsonCodec.gen
   extension(r: ReceiptRequest)
-    def toCommand: ProcessReceiptCommand = ProcessReceiptCommand(r.receiptData, PlayerId(r.playerId))
+    def toCommand: SubmitReceipt = SubmitReceipt(r.receiptData, PlayerId(r.playerId))
 }
 
 // Responses

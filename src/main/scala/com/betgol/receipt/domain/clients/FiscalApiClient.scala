@@ -1,7 +1,7 @@
 package com.betgol.receipt.domain.clients
 
 import zio._
-import com.betgol.receipt.domain.{ParsedReceipt, TaxAuthorityConfirmation}
+import com.betgol.receipt.domain.{FiscalDocument, VerificationConfirmation}
 
 
 trait FiscalApiClient {
@@ -14,5 +14,5 @@ trait FiscalApiClient {
    * - None: If the provider responded "Not Found".
    * - Fail(FiscalApiError): If serialization/deserialization or network/5xx errors.
    */
-  def verify(receipt: ParsedReceipt): IO[FiscalApiError, Option[TaxAuthorityConfirmation]]
+  def verify(receipt: FiscalDocument): IO[FiscalApiError, Option[VerificationConfirmation]]
 }

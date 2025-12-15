@@ -1,9 +1,9 @@
 package com.betgol.receipt.domain.clients
 
-import com.betgol.receipt.domain.Types.CountryIsoCode
+import com.betgol.receipt.domain.Ids.CountryCode
 import zio.UIO
 
 
 trait FiscalClientProvider {
-  def getClientsFor(countryIso: CountryIsoCode): UIO[List[FiscalApiClient]]
+  def getClientsFor(countryIso: CountryCode): UIO[List[FiscalApiClient]]
 }
