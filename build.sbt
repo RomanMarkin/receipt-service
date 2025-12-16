@@ -29,4 +29,7 @@ libraryDependencies ++= Seq(
 )
 
 testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
-Test / fork := false
+
+// 'true' = Forked JVM exits, signaling Ryuk to terminate itself and cleanup resources.
+// 'false' = JVM stays alive (Ryuk hangs/waits), but required for IntelliJ Breakpoints.
+Test / fork := true

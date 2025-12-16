@@ -1,6 +1,6 @@
 package com.betgol.receipt.api
 
-import com.betgol.receipt.api.dto.{ApiErrorResponse, ApiSuccessResponse, ReceiptRequest}
+import com.betgol.receipt.api.dto.{ApiErrorResponse, ReceiptRequest, ReceiptSubmissionResponse}
 import com.betgol.receipt.domain.*
 import com.betgol.receipt.services.ReceiptService
 import zio.*
@@ -17,7 +17,8 @@ object ReceiptRoutes {
           .map(_.fromJson[ReceiptRequest]).flatMap {
             case Right(request) =>
               ZIO.serviceWithZIO[ReceiptService](_.process(request.toCommand))
-                .as(Response.json(ApiSuccessResponse("Receipt accepted").toJson))
+                .map { res => ReceiptSubmissionResponse(res.id.value, res.status.toString, res.message) }
+                .map { responseDto => Response.json(responseDto.toJson) }
                 .catchAll(mapErrorToResponse)
             case Left(jsonError) =>
               ZIO.succeed(Response.json(ApiErrorResponse(s"Invalid JSON format: $jsonError").toJson).status(Status.BadRequest))
@@ -30,12 +31,11 @@ object ReceiptRoutes {
     )
 
   private def mapErrorToResponse(error: ReceiptSubmissionError): UIO[Response] = error match {
-    case InvalidReceipt(msg, _) =>
-      ZIO.succeed(Response.json(ApiErrorResponse(s"Invalid receipt: $msg").toJson).status(Status.BadRequest))
+//TODO delete
+//    case InvalidReceipt(msg, _) =>
+//      ZIO.succeed(Response.json(ApiErrorResponse(s"Invalid receipt: $msg").toJson).status(Status.BadRequest))
     case DuplicateReceipt(msg, _) =>
       ZIO.succeed(Response.json(ApiErrorResponse(msg).toJson).status(Status.Conflict))
-    case FiscalRecordNotFound(msg, _) =>
-      ZIO.succeed(Response.json(ApiErrorResponse(msg).toJson).status(Status.UnprocessableEntity))
     case SystemError(_, _) =>
       ZIO.succeed(Response.json(ApiErrorResponse("Internal Server Error").toJson).status(Status.InternalServerError))
   }

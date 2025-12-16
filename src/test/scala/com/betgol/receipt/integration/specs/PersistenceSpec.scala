@@ -1,7 +1,7 @@
 package com.betgol.receipt.integration.specs
 
 import com.betgol.receipt.api.ReceiptRoutes
-import com.betgol.receipt.api.dto.ReceiptRequest
+import com.betgol.receipt.api.dto.{ReceiptRequest, ReceiptSubmissionResponse}
 import com.betgol.receipt.domain.clients.BettingApiClient
 import com.betgol.receipt.domain.parsers.ReceiptParser
 import com.betgol.receipt.domain.repos.{BonusAssignmentRepository, ReceiptSubmissionRepository, VerificationRetryRepository}
@@ -18,7 +18,7 @@ import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.model.Filters.{and, equal}
 import zio.*
 import zio.http.*
-import zio.json.EncoderOps
+import zio.json.*
 import zio.test.*
 
 import java.time.format.DateTimeFormatter
@@ -50,6 +50,8 @@ object PersistenceSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
+          body     <- response.body.asString
+          apiResponse <- ZIO.fromEither(body.fromJson[ReceiptSubmissionResponse]).orElseFail(s"Failed to parse API response: $body")
           _        <- ZIO.succeed(assertTrue(response.status == Status.Ok))
           db       <- ZIO.service[MongoDatabase]
 
@@ -75,7 +77,8 @@ object PersistenceSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         } yield assertTrue(
           // ReceiptSubmission
-          savedDoc.getStringOpt("_id").isDefined,
+          savedDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
+          savedDoc.getStringOpt("status").contains(apiResponse.status),
           savedDoc.getStringOpt("status").contains(SubmissionStatus.ValidatedNoBonus.toString),
 
           // Metadata
@@ -160,7 +163,9 @@ object PersistenceSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          _        <- ZIO.succeed(assertTrue(response.status == Status.Ok))
+          body     <- response.body.asString
+          apiResponse <- ZIO.fromEither(body.fromJson[ReceiptSubmissionResponse]).orElseFail(s"Failed to parse API response: $body")
+          _           <- ZIO.succeed(assertTrue(response.status == Status.Ok))
           db          <- ZIO.service[MongoDatabase]
           retryPolicy = Schedule.recurs(10) && Schedule.spaced(100.millis)
           receipts    = db.getCollection[BsonDocument](MongoReceiptSubmissionRepository.CollectionName)
@@ -193,7 +198,8 @@ object PersistenceSpec extends ZIOSpecDefault with BasicIntegrationSpec {
             .orElseFail(s"Retry record not found for submissionId: ${submissionIdOpt.getOrElse("unknown")}")
 
         } yield assertTrue(
-          submissionIdOpt.isDefined,
+          savedDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
+          savedDoc.getStringOpt("status").contains(apiResponse.status),
           savedDoc.getStringOpt("status").contains(SubmissionStatus.VerificationPending.toString),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),

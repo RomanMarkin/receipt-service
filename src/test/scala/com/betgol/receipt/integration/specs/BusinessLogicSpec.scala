@@ -1,12 +1,13 @@
 package com.betgol.receipt.integration.specs
 
 import com.betgol.receipt.api.ReceiptRoutes
-import com.betgol.receipt.api.dto.ReceiptRequest
+import com.betgol.receipt.api.dto.{ReceiptRequest, ReceiptSubmissionResponse}
+import com.betgol.receipt.domain.SubmissionStatus
 import com.betgol.receipt.integration.specs.BusinessLogicSpec.makeReceiptData
 import com.betgol.receipt.integration.{BasicIntegrationSpec, SharedTestLayer}
 import zio.*
 import zio.http.*
-import zio.json.EncoderOps
+import zio.json.*
 import zio.test.*
 
 import java.time.LocalDate
@@ -14,6 +15,14 @@ import java.time.format.DateTimeFormatter
 
 
 object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
+
+  private def parseReceiptResponse(response: Response): ZIO[Any, String, ReceiptSubmissionResponse] =
+    for {
+      body <- response.body.asString
+        .mapError(err => s"Failed to parse API response: $err")
+      dto <- ZIO.fromEither(body.fromJson[ReceiptSubmissionResponse])
+        .mapError(err => s"Failed to parse API response: $err. Body was: $body")
+    } yield dto
 
   override def spec = suite("Business Logic Validation")(
 
@@ -27,10 +36,12 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          bodyStr <- response.body.asString
+          dto <- parseReceiptResponse(response)
         } yield assertTrue(
-          response.status == Status.BadRequest,
-          bodyStr.contains("Insufficient data fields")
+          response.status == Status.Ok,
+          dto.receiptSubmissionId.nonEmpty,
+          dto.status == SubmissionStatus.InvalidReceiptData.toString,
+          dto.message.exists(_.contains("Insufficient data fields"))
         )
       }
     },
@@ -42,10 +53,12 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          body     <- response.body.asString
+          dto <- parseReceiptResponse(response)
         } yield assertTrue(
-          response.status == Status.BadRequest,
-          body.contains("Invalid Issuer Tax Id (RUC)")
+          response.status == Status.Ok,
+          dto.receiptSubmissionId.nonEmpty,
+          dto.status == SubmissionStatus.InvalidReceiptData.toString,
+          dto.message.exists(_.contains("Invalid Issuer Tax Id (RUC)"))
         )
       }
     },
@@ -62,10 +75,12 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          body     <- response.body.asString
+          dto <- parseReceiptResponse(response)
         } yield assertTrue(
-          response.status == Status.BadRequest,
-          body.contains("Invalid document type")
+          response.status == Status.Ok,
+          dto.receiptSubmissionId.nonEmpty,
+          dto.status == SubmissionStatus.InvalidReceiptData.toString,
+          dto.message.exists(_.contains("Invalid document type"))
         )
       }
     },
@@ -88,10 +103,12 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          body     <- response.body.asString
+          dto <- parseReceiptResponse(response)
         } yield assertTrue(
-          response.status == Status.BadRequest,
-          body.contains("Invalid document series")
+          response.status == Status.Ok,
+          dto.receiptSubmissionId.nonEmpty,
+          dto.status == SubmissionStatus.InvalidReceiptData.toString,
+          dto.message.exists(_.contains("Invalid document series"))
         )
       }
     },
@@ -103,10 +120,12 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          body     <- response.body.asString
+          dto <- parseReceiptResponse(response)
         } yield assertTrue(
-          response.status == Status.BadRequest,
-          body.contains("Invalid document number")
+          response.status == Status.Ok,
+          dto.receiptSubmissionId.nonEmpty,
+          dto.status == SubmissionStatus.InvalidReceiptData.toString,
+          dto.message.exists(_.contains("Invalid document number"))
         )
       }
     },
@@ -118,8 +137,13 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
         val req = buildRequest(payload)
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          body     <- response.body.asString
-        } yield assertTrue(body.contains("Invalid total amount"))
+          dto <- parseReceiptResponse(response)
+        } yield assertTrue(
+          response.status == Status.Ok,
+          dto.receiptSubmissionId.nonEmpty,
+          dto.status == SubmissionStatus.InvalidReceiptData.toString,
+          dto.message.exists(_.contains("Invalid total amount"))
+        )
       }
     },
 
@@ -137,10 +161,12 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          body     <- response.body.asString
+          dto <- parseReceiptResponse(response)
         } yield assertTrue(
-          response.status == Status.BadRequest,
-          body.contains("Invalid date format")
+          response.status == Status.Ok,
+          dto.receiptSubmissionId.nonEmpty,
+          dto.status == SubmissionStatus.InvalidReceiptData.toString,
+          dto.message.exists(_.contains("Invalid date format"))
         )
       }
     },
@@ -158,14 +184,17 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
       check(validReceiptGen) { validReceipt =>
         val payload = ReceiptRequest(validReceipt, "player-1").toJson
         val req = buildRequest(payload)
-
+        
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          body <- response.body.asString
-        } yield assertTrue(
-          response.status == Status.Ok,
-          body.contains("Receipt accepted")
-        )
+          dto <- parseReceiptResponse(response)
+        } yield
+          assertTrue(
+            response.status == Status.Ok,
+            dto.receiptSubmissionId.nonEmpty,
+            dto.status == SubmissionStatus.ValidatedNoBonus.toString,
+            dto.message.isEmpty
+          )
       }
     }
 

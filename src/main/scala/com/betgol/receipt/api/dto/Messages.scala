@@ -21,6 +21,14 @@ object ApiSuccessResponse {
   implicit val encoder: JsonEncoder[ApiSuccessResponse] = DeriveJsonEncoder.gen
 }
 
+case class ReceiptSubmissionResponse(receiptSubmissionId: String,
+                                     status: String,
+                                     message: Option[String] = None) extends ApiResponse
+object ReceiptSubmissionResponse {
+  implicit val encoder: JsonEncoder[ReceiptSubmissionResponse] = DeriveJsonEncoder.gen
+  implicit val decoder: JsonDecoder[ReceiptSubmissionResponse] = DeriveJsonDecoder.gen
+}
+
 case class ApiErrorResponse(error: String) extends ApiResponse
 object ApiErrorResponse {
   implicit val encoder: JsonEncoder[ApiErrorResponse] = DeriveJsonEncoder.gen

@@ -7,4 +7,5 @@ case class SubmitReceipt(receiptData: String,
                          playerId: PlayerId)
 
 final case class ReceiptSubmissionResult(id: SubmissionId,
-                                         status: SubmissionStatus)
+                                         status: SubmissionStatus,
+                                         message: Option[String] = None)

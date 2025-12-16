@@ -43,12 +43,12 @@ case class ReceiptServiceLive(idGenerator: IdGenerator,
       _ <- receiptSubmissionRepo.add(submission).tapError { e => ZIO.logError(e.getMessage) }
 
       confirmationOpt <- verifyWithTaxAuthority(fiscalDocument) //TODO move to another service?
-      status <- confirmationOpt match {
+      submissionResult <- confirmationOpt match {
         case Some(confirmation) =>
           for {
             _ <- receiptSubmissionRepo.updateConfirmed(id, confirmation).tapError { e => ZIO.logError(e.getMessage) }
-            _ <- ZIO.logInfo(s"Fiscal document verified by [${confirmation.apiProvider}]")
-          } yield SubmissionStatus.ValidatedNoBonus
+            _ <- ZIO.logInfo(s"Fiscal document was verified by [${confirmation.apiProvider}]")
+          } yield ReceiptSubmissionResult(id, SubmissionStatus.ValidatedNoBonus)
 
         case None =>
           for {
@@ -56,10 +56,9 @@ case class ReceiptServiceLive(idGenerator: IdGenerator,
             retryId <- idGenerator.generate.map(VerificationRetryId.apply)
             vr = VerificationRetry.initial(retryId, id, cmd.playerId, fiscalDocument.country)
             _ <- verificationRetryRepo.add(vr).tapError { e => ZIO.logError(e.getMessage) }
-            _ <- ZIO.fail(FiscalRecordNotFound(s"Verification pending. Added to retry queue."))
-          } yield SubmissionStatus.VerificationPending
+          } yield ReceiptSubmissionResult(id, SubmissionStatus.VerificationPending, Some("Receipt verification failed, timed out, or the receipt has not yet been approved."))
       }
-    } yield ReceiptSubmissionResult(id, status)
+    } yield submissionResult
 
   private[services] def verifyWithTaxAuthority(receipt: FiscalDocument): UIO[Option[VerificationConfirmation]] = {
     clientProvider.getClientsFor(receipt.country).flatMap { clients =>
@@ -96,8 +95,7 @@ case class ReceiptServiceLive(idGenerator: IdGenerator,
       id <- idGenerator.generate.map(SubmissionId(_))
       submission = ReceiptSubmission.invalidSubmission(id, cmd.playerId, cmd.receiptData, errorMsg)
       _ <- receiptSubmissionRepo.add(submission).tapError { e => ZIO.logError(e.getMessage) }
-      _ <- ZIO.fail(InvalidReceipt(errorMsg))
-    } yield ReceiptSubmissionResult(id, SubmissionStatus.InvalidReceiptData)
+    } yield ReceiptSubmissionResult(id, SubmissionStatus.InvalidReceiptData, Some(errorMsg))
 }
 
 object ReceiptServiceLive {
