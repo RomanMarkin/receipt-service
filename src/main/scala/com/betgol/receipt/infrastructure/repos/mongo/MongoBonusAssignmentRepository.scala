@@ -1,30 +1,56 @@
 package com.betgol.receipt.infrastructure.repos.mongo
 
 import com.betgol.receipt.domain.Ids.BonusAssignmentId
+import com.betgol.receipt.domain.RepositoryError
+import com.betgol.receipt.domain.models.{BonusAssignment, BonusAssignmentAttempt, BonusAssignmentStatus}
 import com.betgol.receipt.domain.repos.BonusAssignmentRepository
-import com.betgol.receipt.domain.{BonusAssignment, BonusAssignmentError, BonusAssignmentStatus}
+import com.betgol.receipt.infrastructure.repos.mongo.mappers.BonusAssignmentMappers.*
+import com.betgol.receipt.infrastructure.repos.mongo.mappers.MongoPrimitives.*
 import org.mongodb.scala.*
+import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Indexes
+import org.mongodb.scala.model.Updates.*
 import zio.{IO, Task, ZIO, ZLayer}
 
 
 case class MongoBonusAssignmentRepository(db: MongoDatabase) extends BonusAssignmentRepository {
   import MongoBonusAssignmentRepository.CollectionName
-  private val bonusAssignment = db.getCollection(CollectionName)
+  private val bonusAssignments = db.getCollection(CollectionName)
 
   def ensureIndexes: Task[Unit] = {
     val key = Indexes.ascending("submissionId")
     for {
-      _ <- ZIO.fromFuture(_ => bonusAssignment.createIndex(key).toFuture())
+      _ <- ZIO.fromFuture(_ => bonusAssignments.createIndex(key).toFuture())
       _ <- ZIO.logInfo(s"Ensured database indexes for collection [$CollectionName]")
     } yield ()
   }
 
-  //TODO implement
-  override def save(assignment: BonusAssignment): IO[BonusAssignmentError, Unit] = ???
+  override def add(assignment: BonusAssignment): IO[RepositoryError, BonusAssignmentId] = {
+    val doc = assignment.toBson
+    ZIO.fromFuture(_ => bonusAssignments.insertOne(doc).toFuture())
+      .as(assignment.id)
+      .mapError { t => RepositoryError.InsertError(s"Database failure during adding the BonusAssignment (id: ${assignment.id.value}): ${t.getMessage}", t) }
+  }
 
-  //TODO implement
-  override def updateStatus(id: BonusAssignmentId, status: BonusAssignmentStatus, error: Option[String]): IO[BonusAssignmentError, Unit] = ???
+  override def addAttempt(id: BonusAssignmentId, attempt: BonusAssignmentAttempt, assignmentStatus: BonusAssignmentStatus): IO[RepositoryError, Unit] = {
+    val attemptBson = attempt.toBson
+
+    val updateOps = combine(
+      set("status", assignmentStatus.toString),
+      set("updatedAt", attempt.attemptedAt.toBsonDateTime),
+      push("attempts", attemptBson)
+    )
+
+    ZIO.fromFuture(_ => bonusAssignments.updateOne(equal("_id", id.value), updateOps).toFuture())
+      .flatMap { result =>
+        if (result.getModifiedCount > 0) ZIO.unit
+        else ZIO.fail(RepositoryError.NotFound(s"Cannot add attempt: Bonus assignment not found (id: ${id.value})"))
+      }
+      .mapError {
+        case e: RepositoryError => e
+        case e => RepositoryError.UpdateError(s"Failed to add attempt to BonusAssignment (id: ${id.value}): ${e.getMessage}", e)
+      }
+  }
 }
 
 object MongoBonusAssignmentRepository {
@@ -39,4 +65,3 @@ object MongoBonusAssignmentRepository {
       } yield repo
     }
 }
-

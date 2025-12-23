@@ -1,16 +1,24 @@
 package com.betgol.receipt.api.dto
 
 import com.betgol.receipt.domain.SubmitReceipt
-import com.betgol.receipt.domain.Ids.PlayerId
+import com.betgol.receipt.domain.Ids.{CountryCode, PlayerId}
 import zio.json.*
 
 
 // Requests
-case class ReceiptRequest(receiptData: String, playerId: String)
+case class ReceiptRequest(receiptData: String, playerId: String, countryCode: String)
 object ReceiptRequest {
   implicit val codec: JsonCodec[ReceiptRequest] = DeriveJsonCodec.gen
   extension(r: ReceiptRequest)
-    def toCommand: SubmitReceipt = SubmitReceipt(r.receiptData, PlayerId(r.playerId))
+    def toCommand: Either[String, SubmitReceipt] = {
+      CountryCode.from(r.countryCode).map { validCountryCode =>
+        SubmitReceipt(
+          receiptData = r.receiptData,
+          playerId = PlayerId(r.playerId),
+          country = validCountryCode
+        )
+      }
+    }
 }
 
 // Responses

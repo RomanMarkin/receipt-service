@@ -1,6 +1,6 @@
 package com.betgol.receipt.infrastructure.clients.jsonpe
 
-import com.betgol.receipt.domain.FiscalDocument
+import com.betgol.receipt.domain.models.FiscalDocument
 import zio.*
 import zio.json.*
 
@@ -8,12 +8,12 @@ import java.time.format.DateTimeFormatter
 
 
 /** JsonPe documentation: https://docs.json.pe/api-consulta/endpoint/sunat-cpe */
-case class JsonPeRequest(ruc_emisor: String,
-                            codigo_tipo_documento: String,
-                            serie_documento: String,
-                            numero_documento: String,
-                            fecha_de_emision: String,
-                            total: String)
+case class JsonPeRequest(@jsonField("ruc_emisor")            issuerTaxId: String,
+                         @jsonField("codigo_tipo_documento") docTypeCode: String,
+                         @jsonField("serie_documento")       docSeries: String,
+                         @jsonField("numero_documento")      docNumber: String,
+                         @jsonField("fecha_de_emision")      issueDate: String,
+                         @jsonField("total")                 totalAmount: String)
 
 object JsonPeRequest {
   implicit val encoder: JsonEncoder[JsonPeRequest] = DeriveJsonEncoder.gen[JsonPeRequest]
@@ -22,21 +22,19 @@ object JsonPeRequest {
 
   def from(r: FiscalDocument): JsonPeRequest =
     JsonPeRequest(
-      ruc_emisor = r.issuerTaxId,
-      codigo_tipo_documento = r.docType,
-      serie_documento = r.series,
-      numero_documento = r.number,
-      fecha_de_emision = r.issuedAt.format(dateFormat),
-      total = f"${r.totalAmount}%.2f"
+      issuerTaxId = r.issuerTaxId,
+      docTypeCode = r.docType,
+      docSeries = r.series,
+      docNumber = r.number,
+      issueDate = r.issuedAt.format(dateFormat),
+      totalAmount = f"${r.totalAmount}%.2f"
     )
 }
 
-case class JsonPeResponseData(
-                                  @jsonField("comprobante_estado_codigo") estadoCp: String,
-                                  @jsonField("comprobante_estado_descripcion") descripcionCp: Option[String],
-                                  @jsonField("empresa_estado_codigo") estadoRuc: Option[String],
-                                  @jsonField("empresa_condicion_codigo") condicionRuc: Option[String]
-                                )
+case class JsonPeResponseData(@jsonField("comprobante_estado_codigo") receiptStatusCode: String,
+                              @jsonField("comprobante_estado_descripcion") receiptStatusDescription: Option[String],
+                              @jsonField("empresa_estado_codigo") companyStatusCode: Option[String],
+                              @jsonField("empresa_condicion_codigo") companyConditionCode: Option[String])
 
 case class JsonPeResponse(success: Boolean,
                           data: Option[JsonPeResponseData],

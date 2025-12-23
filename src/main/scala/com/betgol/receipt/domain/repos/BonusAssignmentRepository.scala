@@ -1,11 +1,12 @@
 package com.betgol.receipt.domain.repos
 
 import com.betgol.receipt.domain.Ids.BonusAssignmentId
-import com.betgol.receipt.domain.{BonusAssignment, BonusAssignmentError, BonusAssignmentStatus}
+import com.betgol.receipt.domain.RepositoryError
+import com.betgol.receipt.domain.models.{BonusAssignment, BonusAssignmentAttempt, BonusAssignmentStatus}
 import zio.IO
 
 
 trait BonusAssignmentRepository {
-  def save(assignment: BonusAssignment): IO[BonusAssignmentError, Unit]
-  def updateStatus(id: BonusAssignmentId, status: BonusAssignmentStatus, error: Option[String] = None): IO[BonusAssignmentError, Unit]
+  def add(assignment: BonusAssignment): IO[RepositoryError, BonusAssignmentId]
+  def addAttempt(id: BonusAssignmentId, attempt: BonusAssignmentAttempt, assignmentStatus: BonusAssignmentStatus): IO[RepositoryError, Unit]
 }

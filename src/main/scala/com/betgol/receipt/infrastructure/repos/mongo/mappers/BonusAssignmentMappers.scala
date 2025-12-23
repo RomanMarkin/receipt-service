@@ -1,28 +1,53 @@
 package com.betgol.receipt.infrastructure.repos.mongo.mappers
 
-import com.betgol.receipt.domain.Ids.{BonusAssignmentId, PlayerId, SubmissionId}
-import com.betgol.receipt.domain.{BonusAssignment, BonusAssignmentStatus, BonusCode}
+import com.betgol.receipt.domain.*
+import com.betgol.receipt.domain.Ids.{BonusAssignmentId, BonusCode, PlayerId, SubmissionId}
+import com.betgol.receipt.domain.models.{BonusAssignment, BonusAssignmentAttempt, BonusAssignmentAttemptStatus, BonusAssignmentStatus}
 import com.betgol.receipt.infrastructure.repos.mongo.mappers.MongoPrimitives.*
-import org.mongodb.scala.bson.BsonDocument
+import org.mongodb.scala.bson.{BsonArray, BsonDocument}
 
+import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
 
 object BonusAssignmentMappers {
 
-  extension (ba: BonusAssignment) {
+  extension (attempt: BonusAssignmentAttempt) {
     def toBson: BsonDocument = {
       val doc = new BsonDocument()
+        .append("status", attempt.status.toString.toBsonString)
+        .append("attemptNumber", attempt.attemptNumber.toBsonInt32)
+        .append("attemptedAt",  attempt.attemptedAt.toBsonDateTime)
+      attempt.description.foreach(e => doc.append("description", e.toBsonString))
+      doc
+    }
+  }
+
+  extension (d: BsonDocument) {
+    def toBonusAssignmentAttempt: Either[String, BonusAssignmentAttempt] =
+      for {
+        statusStr     <- d.getStringOpt("status").toRight("Missing status")
+        status        <- Try(BonusAssignmentAttemptStatus.valueOf(statusStr)).toOption
+          .toRight(s"Invalid status: $statusStr")
+        attemptNumber <- d.getIntOpt("attemptNumber").toRight("Missing attemptNumber")
+        attemptedAt   <- d.getInstantOpt("attemptedAt").toRight("Missing attemptedAt")
+        description   = d.getStringOpt("description")
+      } yield BonusAssignmentAttempt(status, attemptNumber, attemptedAt, description)
+  }
+  
+  extension (ba: BonusAssignment) {
+    def toBson: BsonDocument = {
+      val attemptsArray = new BsonArray()
+      ba.attempts.foreach(a => attemptsArray.add(a.toBson))
+      new BsonDocument()
         .append("_id",          ba.id.value.toBsonString)
         .append("submissionId", ba.submissionId.value.toBsonString)
         .append("playerId",     ba.playerId.value.toBsonString)
-        .append("bonusCode",    ba.bonusCode.code.toBsonString)
+        .append("bonusCode",    ba.bonusCode.value.toBsonString)
         .append("status",       ba.status.toString.toBsonString)
-        .append("attempt",      ba.attempt.toBsonInt32)
+        .append("attempts",     attemptsArray)
         .append("createdAt",    ba.createdAt.toBsonDateTime)
-      ba.lastAttemptAt.foreach(inst => doc.append("lastAttemptAt", inst.toBsonDateTime))
-      ba.error.foreach(err => doc.append("error", err.toBsonString))
-      doc
+        .append("updatedAt",    ba.updatedAt.toBsonDateTime)
     }
   }
 
@@ -45,26 +70,32 @@ object BonusAssignmentMappers {
           .map(BonusCode.apply)
           .toRight("Missing bonusCode")
 
-        attempt   <- d.getIntOpt("attempt").toRight("Missing attempt")
-        createdAt <- d.getInstantOpt("createdAt").toRight("Missing createdAt")
-
         statusStr <- d.getStringOpt("status").toRight("Missing status")
         status    <- Try(BonusAssignmentStatus.valueOf(statusStr)).toOption
           .toRight(s"Invalid bonus status: $statusStr")
 
-        lastAttemptAt = d.getInstantOpt("lastAttemptAt")
-        error         = d.getStringOpt("error")
+        createdAt <- d.getInstantOpt("createdAt").toRight("Missing createdAt")
+        updatedAt <- d.getInstantOpt("updatedAt").toRight("Missing updatedAt")
+        
+        attemptsArr <- Try(d.getArray("attempts")).toOption
+          .toRight("Missing or invalid attempts array")
+        
+        attempts <- attemptsArr.getValues.asScala.toList
+          .map(v => v.asDocument().toBonusAssignmentAttempt)
+          .partitionMap(identity) match {
+          case (Nil, validAttempts) => Right(validAttempts)
+          case (errors, _)          => Left(s"Errors parsing attempts: ${errors.mkString(", ")}")
+        }
 
       } yield BonusAssignment(
-        id            = id,
-        submissionId  = submissionId,
-        playerId      = playerId,
-        bonusCode     = bonusCode,
-        status        = status,
-        attempt       = attempt,
-        createdAt     = createdAt,
-        lastAttemptAt = lastAttemptAt,
-        error         = error
+        id           = id,
+        submissionId = submissionId,
+        playerId     = playerId,
+        bonusCode    = bonusCode,
+        status       = status,
+        attempts     = attempts,
+        createdAt    = createdAt,
+        updatedAt    = updatedAt
       )
     }
   }

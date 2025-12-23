@@ -14,12 +14,12 @@ object Ids {
     def value: String = a
   }
 
-  opaque type VerificationRetryId = String
-  object VerificationRetryId {
-    def apply(value: String): VerificationRetryId = value
+  opaque type VerificationId = String
+  object VerificationId {
+    def apply(value: String): VerificationId = value
   }
-  extension (a: VerificationRetryId) {
-    @targetName("verificationRetryIdValue")
+  extension (a: VerificationId) {
+    @targetName("verificationIdValue")
     def value: String = a
   }
 
@@ -52,6 +52,15 @@ object Ids {
   }
   extension (a: CountryCode) {
     @targetName("countryCodeValue")
+    def value: String = a
+  }
+
+  opaque type BonusCode = String
+  object BonusCode {
+    def apply(value: String): BonusCode = value
+  }
+  extension (a: BonusCode) {
+    @targetName("bonusCodeValue")
     def value: String = a
   }
 }

@@ -1,8 +1,8 @@
 package com.betgol.receipt.domain.services
 
-import com.betgol.receipt.domain.BonusCode
+import com.betgol.receipt.domain.Ids.BonusCode
 
 
 trait BonusEvaluator {
-  def evaluate(amount: Double): Option[BonusCode]
+  def evaluate(amount: BigDecimal): Option[BonusCode]
 }

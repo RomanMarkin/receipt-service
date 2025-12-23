@@ -5,27 +5,42 @@ import zio.config.*
 import zio.config.magnolia.deriveConfig
 
 
-case class MongoConfig(
-  user: String,
-  pass: String,
-  host: String,
-  port: Int,
-  dbName: String
-)
-
-case class ApiPeruConfig(token: String)
-
-case class FactilizaConfig(token: String)
-
-case class JsonPeConfig(token: String)
-
-case class BettingConfig(token: String)
-
 case class AppConfig(mongo: MongoConfig,
-                     betting: BettingConfig,
-                     apiPeru: ApiPeruConfig,
-                     factiliza: FactilizaConfig,
-                     jsonPe: JsonPeConfig)
+                     verificationService: VerificationServiceConfig,
+                     bonusService: BonusServiceConfig)
+
+case class MongoConfig(user: String,
+                       pass: String,
+                       host: String,
+                       port: Int,
+                       dbName: String)
+
+case class VerificationServiceConfig(verificationTimeoutSeconds: Int = 4,
+                                     maxRetries: Int = 5,
+                                     clients: VerificationClientsConfig)
+
+case class VerificationClientsConfig(apiPeru: ApiPeruConfig,
+                                     factiliza: FactilizaConfig,
+                                     jsonPe: JsonPeConfig)
+
+case class ApiPeruConfig(url: String,
+                         token: String,
+                         timeoutSeconds: Int)
+
+case class FactilizaConfig(url: String,
+                           token: String,
+                           timeoutSeconds: Int)
+
+case class JsonPeConfig(url: String,
+                        token: String,
+                        timeoutSeconds: Int)
+
+case class BonusServiceConfig(maxRetries: Int = 5,
+                              bettingClient: BonusClientConfig)
+
+case class BonusClientConfig(url: String,
+                             token: String,
+                             timeoutSeconds: Int)
 
 object AppConfig {
   val config: Config[AppConfig] = deriveConfig[AppConfig]
@@ -36,15 +51,22 @@ object AppConfig {
   val mongo: ZLayer[Any, Config.Error, MongoConfig] =
     live.project(_.mongo)
 
-  val betting: ZLayer[Any, Config.Error, BettingConfig] =
-    live.project(_.betting)
+  val verificationService: ZLayer[Any, Config.Error, VerificationServiceConfig] =
+    live.project(_.verificationService)
 
-  val apiPeru: ZLayer[Any, Config.Error, ApiPeruConfig] =
-    live.project(_.apiPeru)
+  val bonusService: ZLayer[Any, Config.Error, BonusServiceConfig] =
+    live.project(_.bonusService)
 
-  val factiliza: ZLayer[Any, Config.Error, FactilizaConfig] =
-    live.project(_.factiliza)
+  val bettingClient: ZLayer[Any, Config.Error, BonusClientConfig] =
+    live.project(_.bonusService.bettingClient)
 
-  val jsonPe: ZLayer[Any, Config.Error, JsonPeConfig] =
-    live.project(_.jsonPe)
+  val apiPeruClient: ZLayer[Any, Config.Error, ApiPeruConfig] =
+    live.project(_.verificationService.clients.apiPeru)
+
+  val factilizaClient: ZLayer[Any, Config.Error, FactilizaConfig] =
+    live.project(_.verificationService.clients.factiliza)
+
+  val jsonPeClient: ZLayer[Any, Config.Error, JsonPeConfig] = {
+    live.project(_.verificationService.clients.jsonPe)
+  }
 }

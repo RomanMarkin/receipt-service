@@ -3,8 +3,8 @@ package com.betgol.receipt.infrastructure.parsers
 import zio._
 import zio.test._
 import zio.test.Assertion._
-import com.betgol.receipt.domain.FiscalDocument
 import com.betgol.receipt.domain.Ids.CountryCode
+import com.betgol.receipt.domain.models.FiscalDocument
 import java.time.LocalDate
 
 
@@ -29,7 +29,6 @@ object SunatQrParserSpec extends ZIOSpecDefault {
           result.number == "00068781",
           result.totalAmount == 239.13,
           result.issuedAt == LocalDate.of(2025, 2, 22),
-          result.country == CountryCode("PE")
         )
       },
 

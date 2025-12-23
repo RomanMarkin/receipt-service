@@ -33,5 +33,5 @@ object InputValidationSpec extends BasicIntegrationSpec {
       )
     }
 
-  ).provideLayerShared(Scope.default >+> SharedTestLayer.layer.orDie)
+  ).provideLayerShared(Scope.default >+> SharedTestLayer.successLayer.orDie)
 }

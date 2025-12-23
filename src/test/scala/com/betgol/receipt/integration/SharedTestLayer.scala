@@ -1,32 +1,42 @@
 package com.betgol.receipt.integration
 
-import com.betgol.receipt.domain.clients.{BettingApiClient, FiscalClientProvider}
+import com.betgol.receipt.domain.clients.VerificationClientProvider
 import com.betgol.receipt.domain.parsers.ReceiptParser
-import com.betgol.receipt.domain.repos.{BonusAssignmentRepository, ReceiptSubmissionRepository, VerificationRetryRepository}
-import com.betgol.receipt.domain.services.{BonusEvaluator, IdGenerator}
+import com.betgol.receipt.domain.repos.{BonusAssignmentRepository, ReceiptSubmissionRepository, ReceiptVerificationRepository}
+import com.betgol.receipt.domain.services.*
 import com.betgol.receipt.fixtures.TestMongoLayer
 import com.betgol.receipt.infrastructure.parsers.SunatQrParser
-import com.betgol.receipt.infrastructure.repos.mongo.{MongoBonusAssignmentRepository, MongoReceiptSubmissionRepository, MongoVerificationRetryRepository}
+import com.betgol.receipt.infrastructure.repos.mongo.{MongoBonusAssignmentRepository, MongoReceiptSubmissionRepository, MongoReceiptVerificationRepository}
 import com.betgol.receipt.infrastructure.services.{HardcodedBonusEvaluator, UuidV7IdGenerator}
-import com.betgol.receipt.mocks.clients.{MockBettingXmlApiClient, MockFiscalClientProvider}
+import com.betgol.receipt.mocks.services.{MockBonusEvaluator, MockBonusService, MockVerificationService}
 import com.betgol.receipt.services.{ReceiptService, ReceiptServiceLive}
 import org.mongodb.scala.MongoDatabase
 import zio.ZLayer
 
 
 object SharedTestLayer {
-  val layer: ZLayer[Any, Throwable, MongoDatabase & ReceiptSubmissionRepository & VerificationRetryRepository & BonusAssignmentRepository & ReceiptParser & FiscalClientProvider & BettingApiClient & IdGenerator & BonusEvaluator & ReceiptService] =
-    TestMongoLayer.layer >+> (MongoReceiptSubmissionRepository.layer ++ MongoVerificationRetryRepository.layer ++ MongoBonusAssignmentRepository.layer) ++
+  private val baseLayer: ZLayer[Any, Throwable,
+    MongoDatabase & ReceiptSubmissionRepository & ReceiptVerificationRepository & BonusAssignmentRepository & ReceiptParser & IdGenerator] =
+
+    TestMongoLayer.layer >+>
+    (MongoReceiptSubmissionRepository.layer ++ MongoReceiptVerificationRepository.layer ++ MongoBonusAssignmentRepository.layer) ++
     SunatQrParser.layer >+>
-    MockFiscalClientProvider.happyPath >+>
-    MockBettingXmlApiClient.layer >+>
-    (UuidV7IdGenerator.layer ++ HardcodedBonusEvaluator.layer) >+>
+    UuidV7IdGenerator.layer
+
+  val withoutVerificationClientProvider: ZLayer[VerificationClientProvider, Throwable,
+    MongoDatabase & ReceiptSubmissionRepository & ReceiptVerificationRepository & BonusAssignmentRepository & ReceiptParser & IdGenerator & BonusEvaluator & BonusService & VerificationService] =
+
+    baseLayer >+>
+    MockBonusEvaluator.bonusAvailablePath >+>
+    (MockBonusService.bonusAssignedPath ++ MockVerificationService.layer) >+>
+    MockVerificationService.layer
+
+  val successLayer: ZLayer[Any, Throwable,
+    MongoDatabase & ReceiptSubmissionRepository & ReceiptVerificationRepository & BonusAssignmentRepository & ReceiptParser & IdGenerator & BonusEvaluator & BonusService & VerificationService & ReceiptService] =
+
+    baseLayer >+>
+    MockBonusEvaluator.bonusAvailablePath >+>
+    (MockBonusService.bonusAssignedPath ++ MockVerificationService.validDocPath) >+>
     ReceiptServiceLive.layer
 
-  val infrastructure: ZLayer[Any, Throwable, MongoDatabase & ReceiptSubmissionRepository & VerificationRetryRepository & BonusAssignmentRepository & ReceiptParser & IdGenerator & BonusEvaluator] =
-    TestMongoLayer.layer >+>
-    (MongoReceiptSubmissionRepository.layer ++ MongoVerificationRetryRepository.layer ++ MongoBonusAssignmentRepository.layer) ++
-    MockBettingXmlApiClient.layer >+>
-    (UuidV7IdGenerator.layer ++ HardcodedBonusEvaluator.layer) >+>
-    SunatQrParser.layer
 }

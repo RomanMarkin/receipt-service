@@ -2,85 +2,79 @@ package com.betgol.receipt.infrastructure.clients.apiperu
 
 import com.betgol.receipt.config.ApiPeruConfig
 import com.betgol.receipt.domain.clients.*
-import com.betgol.receipt.domain.{FiscalDocument, VerificationConfirmation}
+import com.betgol.receipt.domain.models.FiscalDocument
+import com.betgol.receipt.infrastructure.clients.HttpVerificationApiClient
 import zio.*
 import zio.http.*
 import zio.json.*
 
 
-case class ApiPeruClient(client: Client, apiUrl: URL, apiKey: String) extends FiscalApiClient {
+case class ApiPeruClient(client: Client, config: ApiPeruConfig, apiUrl: URL) extends HttpVerificationApiClient {
 
   override val providerName: String = "ApiPeru"
 
-  override def verify(r: FiscalDocument): IO[FiscalApiError, Option[VerificationConfirmation]] = {
+  override def verify(r: FiscalDocument): IO[VerificationApiError, VerificationResult] =
     for {
+      jsonPayload <- ZIO.attempt(ApiPeruRequest.from(r).toJson)
+        .mapError(e => VerificationApiError.SerializationError(s"[$providerName] Request serialization failed", e))
 
-      jsonPayload <- ZIO.attempt {
-        ApiPeruRequest.from(r).toJson
-      }.mapError(e => FiscalApiSerializationError(s"[$providerName] Request serialization failed", e))
-
-      _ <- ZIO.logDebug(s"[$providerName] Request payload: $jsonPayload")
+      _ <- ZIO.logDebug(s"[$providerName] Outgoing Request: $jsonPayload")
 
       httpRequest = Request
         .post(apiUrl, Body.fromString(jsonPayload))
-        .addHeader(Header.Authorization.Bearer(apiKey))
+        .addHeader(Header.Authorization.Bearer(config.token))
         .addHeader(Header.ContentType(MediaType.application.json))
 
-      responseBody <- ZIO.scoped {
+      responseType <- ZIO.scoped {
         client.request(httpRequest)
-          .flatMap(_.body.asString)
-          .mapError(e => FiscalApiNetworkError(s"[$providerName] Network failure", e))
-      }
+          .mapError(e => VerificationApiError.NetworkError(s"[$providerName] Network failure", e))
+          .flatMap { response =>
+            response.body.asString.map(body => (response.status.code, body))
+              .mapError(e => VerificationApiError.NetworkError(s"[$providerName] Failed to read body", e))
+          }
+      }.timeoutFail(VerificationApiError.NetworkError(s"[$providerName] Request timed out after ${config.timeoutSeconds.seconds}", null))(config.timeoutSeconds.seconds)
+      (statusCode, responseBody) = responseType
+
+      _ <- validateHttpStatus(statusCode, responseBody)
+        .tapError(e => ZIO.logError(s"[$providerName] HTTP Failure. Payload sent: $jsonPayload. Error: $e"))
 
       apiResponse <- ZIO.fromEither(responseBody.fromJson[ApiPeruResponse])
-        .mapError(e => FiscalApiDeserializationError(s"[$providerName] Invalid JSON response. Body: $responseBody. Error: $e"))
+        .mapError(e => VerificationApiError.DeserializationError(
+          s"[$providerName] Invalid JSON (Status $statusCode). Body: '$responseBody'. Error: $e"
+        ))
 
-      result <- validateStatus(apiResponse, r.number)
-
+      result <- ZIO.fromEither(ApiPeruClient.mapResponseToDomain(apiResponse, providerName))
     } yield result
-  }
-
-  private def validateStatus(resp: ApiPeruResponse, docNumber: String): UIO[Option[VerificationConfirmation]] = {
-    if (!resp.success || resp.data.isEmpty) {
-      ZIO.logWarning(s"[$providerName] API returned failure or no data. Msg: ${resp.message.getOrElse("")}, Response: ${resp.toJsonPretty}") *>
-      ZIO.none
-    } else {
-      val data = resp.data.get
-      val description = data.descripcionCp.getOrElse("No description provided")
-
-      // Standard SUNAT Status:
-      // "1" = Aceptado (Valid)
-      // "0" = No Existe (Not Found)
-      // "2" = Anulado (Annulled)
-      if (data.estadoCp == "1") {
-        Clock.instant.map { now =>
-          Some(VerificationConfirmation(
-            apiProvider = providerName,
-            confirmedAt = now,
-            externalId = None,
-            statusMessage = description
-          ))
-        }
-      } else {
-        ZIO.logWarning(s"[$providerName] Verification failed. Status: ${data.estadoCp}. Reason: $description") *>
-        ZIO.none
-      }
-    }
-  }
-
 }
 
 object ApiPeruClient {
-  private val HardcodedUrl = "https://apiperu.dev/api/cpe"
+  def mapResponseToDomain(resp: ApiPeruResponse, providerName: String): Either[VerificationApiError, VerificationResult] = {
+    (resp.success, resp.data) match {
+      case (true, Some(data)) =>
+        data.receiptStatusCode match {
+          case "0" => Right(VerificationResult(VerificationResultStatus.NotFound, description = data.receiptStatusDescription))
+          case "1" => Right(VerificationResult(VerificationResultStatus.Valid, description = data.receiptStatusDescription))
+          case "2" => Right(VerificationResult(VerificationResultStatus.Annulled, description = data.receiptStatusDescription))
+          case unknown => Left(VerificationApiError.DeserializationError(s"[$providerName] Unknown receipt status code: '$unknown'"))
+        }
+
+      case (true, None) =>
+        Left(VerificationApiError.DeserializationError(s"[$providerName] Protocol error: Success=true but data is missing."))
+
+      case (false, _) =>
+        val msg = resp.message.getOrElse("Unknown logic error")
+        Left(VerificationApiError.ClientError(200, s"[$providerName] Logical failure: $msg"))
+    }
+  }
 
   val layer: ZLayer[Client & ApiPeruConfig, Nothing, ApiPeruClient] =
     ZLayer.fromZIO {
       for {
         client <- ZIO.service[Client]
         config <- ZIO.service[ApiPeruConfig]
-        url <- ZIO.fromEither(URL.decode(HardcodedUrl))
-          .orDieWith(e => new RuntimeException(s"FATAL: Invalid hardcoded ApiPeru URL: $e"))
+        url <- ZIO.fromEither(URL.decode(config.url))
+          .orDieWith(e => new RuntimeException(s"FATAL: Invalid ApiPeru URL: $e"))
 
-      } yield ApiPeruClient(client, url, config.token)
+      } yield ApiPeruClient(client, config, url)
     }
 }

@@ -1,6 +1,6 @@
 package com.betgol.receipt.infrastructure.parsers
 
-import com.betgol.receipt.domain.FiscalDocument
+import com.betgol.receipt.domain.models.FiscalDocument
 import com.betgol.receipt.domain.parsers.ReceiptParser
 import zio.{IO, ULayer, ZIO, ZLayer}
 

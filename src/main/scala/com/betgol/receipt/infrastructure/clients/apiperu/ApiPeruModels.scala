@@ -1,6 +1,6 @@
 package com.betgol.receipt.infrastructure.clients.apiperu
 
-import com.betgol.receipt.domain.FiscalDocument
+import com.betgol.receipt.domain.models.FiscalDocument
 import zio.*
 import zio.json.*
 
@@ -8,12 +8,12 @@ import java.time.format.DateTimeFormatter
 
 
 /** ApiPeru documentation: https://docs.apiperu.dev/enpoints/consulta-cpe */
-case class ApiPeruRequest(ruc_emisor: String,
-                          codigo_tipo_documento: String,
-                          serie_documento: String,
-                          numero_documento: String,
-                          fecha_de_emision: String,
-                          total: BigDecimal)
+case class ApiPeruRequest(@jsonField("ruc_emisor")            issuerTaxId: String,
+                          @jsonField("codigo_tipo_documento") docTypeCode: String,
+                          @jsonField("serie_documento")       docSeries: String,
+                          @jsonField("numero_documento")      docNumber: String,
+                          @jsonField("fecha_de_emision")      issueDate: String,
+                          @jsonField("total")                 totalAmount: BigDecimal)
 
 object ApiPeruRequest {
   implicit val encoder: JsonEncoder[ApiPeruRequest] = DeriveJsonEncoder.gen[ApiPeruRequest]
@@ -22,21 +22,19 @@ object ApiPeruRequest {
 
   def from(r: FiscalDocument): ApiPeruRequest =
     ApiPeruRequest(
-      ruc_emisor = r.issuerTaxId,
-      codigo_tipo_documento = r.docType,
-      serie_documento = r.series,
-      numero_documento = r.number,
-      fecha_de_emision = r.issuedAt.format(dateFormat),
-      total = r.totalAmount
+      issuerTaxId = r.issuerTaxId,
+      docTypeCode = r.docType,
+      docSeries = r.series,
+      docNumber = r.number,
+      issueDate = r.issuedAt.format(dateFormat),
+      totalAmount = r.totalAmount
     )
 }
 
-case class ApiPeruResponseData(
-  @jsonField("comprobante_estado_codigo") estadoCp: String,
-  @jsonField("comprobante_estado_descripcion") descripcionCp: Option[String],
-  @jsonField("empresa_estado_codigo") estadoRuc: Option[String],
-  @jsonField("empresa_condicion_codigo") condicionRuc: Option[String]
-)
+case class ApiPeruResponseData(@jsonField("comprobante_estado_codigo") receiptStatusCode: String,
+                               @jsonField("comprobante_estado_descripcion") receiptStatusDescription: Option[String],
+                               @jsonField("empresa_estado_codigo") companyStatusCode: Option[String],
+                               @jsonField("empresa_condicion_codigo") companyConditionCode: Option[String])
 
 case class ApiPeruResponse(success: Boolean,
                            data: Option[ApiPeruResponseData],

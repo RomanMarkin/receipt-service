@@ -1,7 +1,8 @@
 package com.betgol.receipt.infrastructure.repos.mongo.mappers
 
 import com.betgol.receipt.domain.*
-import com.betgol.receipt.domain.Ids.{CountryCode, PlayerId, SubmissionId}
+import com.betgol.receipt.domain.Ids.*
+import com.betgol.receipt.domain.models.*
 import com.betgol.receipt.infrastructure.repos.mongo.mappers.MongoPrimitives.*
 import org.mongodb.scala.bson.{BsonDocument, BsonString}
 
@@ -20,6 +21,9 @@ object ReceiptSubmissionMappers {
         .append("metadata", rs.metadata.toBson)
       rs.fiscalDocument.foreach { fd =>
         doc.append("fiscalDocument", fd.toBson)
+      }
+      rs.verification.foreach { b =>
+        doc.append("verification", b.toBson)
       }
       rs.bonus.foreach { b =>
         doc.append("bonus", b.toBson)
@@ -49,7 +53,7 @@ object ReceiptSubmissionMappers {
           .flatMap(_.toFiscalDocument.toOption)
 
         verification = doc.getDocOpt("verification")
-          .flatMap(_.toVerificationConfirmation.toOption)
+          .flatMap(_.toVerificationOutcome.toOption)
 
         bonusOpt = doc.getDocOpt("bonus")
           .flatMap(_.toBonusOutcome.toOption)
@@ -72,6 +76,7 @@ object ReceiptSubmissionMappers {
   extension (m: SubmissionMetadata) {
     def toBson: BsonDocument = new BsonDocument()
       .append("playerId", m.playerId.value.toBsonString)
+      .append("country", m.country.value.toBsonString)
       .append("submittedAt", m.submittedAt.toBsonDateTime)
       .append("rawInput", m.rawInput.toBsonString)
   }
@@ -79,10 +84,11 @@ object ReceiptSubmissionMappers {
   extension (d: BsonDocument) {
     def toSubmissionMetadata: Either[String, SubmissionMetadata] =
       for {
-        pidStr <- d.getStringOpt("playerId").toRight("Missing metadata.playerId")
+        playerIdStr <- d.getStringOpt("playerId").toRight("Missing metadata.playerId")
+        country <- d.getStringOpt("country").toRight("Missing country").flatMap(CountryCode.from)
         submittedAt <- d.getInstantOpt("submittedAt").toRight("Missing metadata.submittedAt")
         rawInput <- d.getStringOpt("rawInput").toRight("Missing metadata.rawInput")
-      } yield SubmissionMetadata(PlayerId(pidStr), submittedAt, rawInput)
+      } yield SubmissionMetadata(PlayerId(playerIdStr), country, submittedAt, rawInput)
   }
 
   // FiscalDocument Mappers
@@ -95,7 +101,6 @@ object ReceiptSubmissionMappers {
       .append("number", fd.number.toBsonString)
       .append("totalAmount", fd.totalAmount.toBsonDecimal128)
       .append("issuedAt", fd.issuedAt.toBsonDateTime)
-      .append("country", fd.country.value.toBsonString)
   }
 
   extension (d: BsonDocument) {
@@ -107,44 +112,46 @@ object ReceiptSubmissionMappers {
         number <- d.getStringOpt("number").toRight("Missing number")
         totalAmount <- d.getBigDecimalOpt("totalAmount").toRight("Missing or invalid totalAmount")
         issuedAt    <- d.getLocalDateOpt("issuedAt").toRight("Missing issuedAt")
-        country <- d.getStringOpt("country").toRight("Missing country").flatMap(CountryCode.from)
       } yield FiscalDocument(
         issuerTaxId = issuerTaxId,
         docType = docType,
         series = series,
         number = number,
         totalAmount = totalAmount,
-        issuedAt = issuedAt,
-        country = country
+        issuedAt = issuedAt
       )
     }
   }
 
   // VerificationConfirmation Mappers
 
-  extension (c: VerificationConfirmation) {
+  extension (c: VerificationOutcome) {
     def toBson: BsonDocument = {
       val doc = new BsonDocument()
-        .append("apiProvider", c.apiProvider.toBsonString)
-        .append("confirmedAt", c.confirmedAt.toBsonDateTime)
-        .append("statusMessage", c.statusMessage.toBsonString)
+        .append("status", c.status.toString.toBsonString)
+        .append("updatedAt", c.updatedAt.toBsonDateTime)
+      c.statusDescription.foreach(s => doc.append("statusDescription", s.toBsonString))
+      c.apiProvider.foreach(s => doc.append("apiProvider", s.toBsonString))
       c.externalId.foreach(id => doc.append("externalId", id.toBsonString))
       doc
     }
   }
 
   extension (d: BsonDocument) {
-    def toVerificationConfirmation: Either[String, VerificationConfirmation] = {
+    def toVerificationOutcome: Either[String, VerificationOutcome] = {
       for {
-        apiProvider <- d.getStringOpt("apiProvider").toRight("Missing apiProvider")
-        confirmedAt <- d.getInstantOpt("confirmedAt").toRight("Missing confirmedAt")
+        statusStr <- d.getStringOpt("status").toRight("Missing status")
+        status <- Try(ReceiptVerificationStatus.valueOf(statusStr)).toOption.toRight(s"Invalid status: $statusStr")
+        apiProvider = d.getStringOpt("apiProvider")
+        updatedAt <- d.getInstantOpt("updatedAt").toRight("Missing updatedAt")
+        statusDescription = d.getStringOpt("statusDescription")
         externalId = d.getStringOpt("externalId")
-        statusMessage <- d.getStringOpt("statusMessage").toRight("Missing statusMessage")
-      } yield VerificationConfirmation(
+      } yield VerificationOutcome(
+        status = status,
+        statusDescription = statusDescription,
         apiProvider = apiProvider,
-        confirmedAt = confirmedAt,
-        externalId = externalId,
-        statusMessage = statusMessage
+        updatedAt = updatedAt,
+        externalId = externalId
       )
     }
   }
@@ -154,11 +161,11 @@ object ReceiptSubmissionMappers {
   extension (bo: BonusOutcome) {
     def toBson: BsonDocument = {
       val doc = new BsonDocument()
-        .append("code", bo.code.toString.toBsonString)
         .append("status", bo.status.toString.toBsonString)
-        .append("assignedAt", bo.assignedAt.toBsonDateTime)
+        .append("updatedAt", bo.updatedAt.toBsonDateTime)
+      bo.code.foreach(code => doc.append("code", BsonString(code.value)))
       bo.externalId.foreach(id => doc.append("externalId", BsonString(id)))
-      bo.statusMessage.foreach(msg => doc.append("statusMessage", BsonString(msg)))
+      bo.statusDescription.foreach(msg => doc.append("statusDescription", BsonString(msg)))
       doc
     }
   }
@@ -166,18 +173,18 @@ object ReceiptSubmissionMappers {
   extension (d: BsonDocument) {
     def toBonusOutcome: Either[String, BonusOutcome] = {
       for {
-        code <- d.getStringOpt("code").map(BonusCode.apply).toRight("Missing code")
-        statusStr <- d.getStringOpt("status").toRight("Missing bonus status")
-        status <- Try(BonusAssignmentStatus.valueOf(statusStr)).toOption.toRight(s"Invalid bonus status: $statusStr")
-        assignedAt <- d.getInstantOpt("assignedAt").toRight("Missing assignedAt")
+        statusStr <- d.getStringOpt("status").toRight("Missing status")
+        status <- Try(BonusAssignmentStatus.valueOf(statusStr)).toOption.toRight(s"Invalid status: $statusStr")
+        updatedAt <- d.getInstantOpt("updatedAt").toRight("Missing updatedAt")
+        code = d.getStringOpt("code").map(BonusCode.apply)
         externalId = d.getStringOpt("externalId")
-        statusMessage = d.getStringOpt("statusMessage")
+        statusDescription = d.getStringOpt("statusDescription")
       } yield BonusOutcome(
         code = code,
         status = status,
-        assignedAt = assignedAt,
+        updatedAt = updatedAt,
         externalId = externalId,
-        statusMessage = statusMessage
+        statusDescription = statusDescription
       )
     }
   }

@@ -1,6 +1,6 @@
 package com.betgol.receipt.domain.parsers
 
-import com.betgol.receipt.domain.FiscalDocument
+import com.betgol.receipt.domain.models.FiscalDocument
 import zio.*
 
 
