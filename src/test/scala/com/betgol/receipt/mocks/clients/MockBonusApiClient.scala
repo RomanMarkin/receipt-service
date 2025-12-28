@@ -5,23 +5,35 @@ import com.betgol.receipt.domain.clients.{BonusApiClient, BonusApiError, BonusAs
 import zio.{IO, ZIO, ZLayer}
 
 
-class MockBonusApiClient(resultStatus: BonusAssignmentResultStatus) extends BonusApiClient {
-
+class MockBonusApiClient(outcome: Either[BonusApiError, BonusAssignmentResult]) extends BonusApiClient {
+  
   override def assignBonus(playerId: PlayerId, bonusCode: BonusCode): IO[BonusApiError, BonusAssignmentResult] =
-    val res = resultStatus match {
-      case BonusAssignmentResultStatus.Assigned =>
-        BonusAssignmentResult(status = resultStatus, description = Some("Mock Bonus Assigned"), externalId = Some("mock-external-id"))
-      case BonusAssignmentResultStatus.NotFound =>
-        BonusAssignmentResult(status = resultStatus, description = Some("Mock Bonus Not Found"), externalId = None)
-    }
-    ZIO.succeed(res)
+    ZIO.fromEither(outcome)
 }
 
 object MockBonusApiClient {
 
   val bonusAssignedPath: ZLayer[Any, Nothing, BonusApiClient] =
-    ZLayer.succeed(new MockBonusApiClient(BonusAssignmentResultStatus.Assigned))
+    ZLayer.succeed(new MockBonusApiClient(
+      Right(BonusAssignmentResult(
+        status = BonusAssignmentResultStatus.Assigned,
+        description = Some("Mock Bonus Assigned"),
+        externalId = Some("mock-external-id")
+      ))
+    ))
 
-  val bonusNotFoundPath: ZLayer[Any, Nothing, BonusApiClient] =
-    ZLayer.succeed(new MockBonusApiClient(BonusAssignmentResultStatus.NotFound))
+  val bonusRejectedPath: ZLayer[Any, Nothing, BonusApiClient] =
+    ZLayer.succeed(new MockBonusApiClient(
+      Left(BonusApiError.BonusRejected("Mock Rejection: User ineligible"))
+    ))
+
+  val networkErrorPath: ZLayer[Any, Nothing, BonusApiClient] =
+    ZLayer.succeed(new MockBonusApiClient(
+      Left(BonusApiError.NetworkError("Mock Network Failure"))
+    ))
+
+  val systemErrorPath: ZLayer[Any, Nothing, BonusApiClient] =
+    ZLayer.succeed(new MockBonusApiClient(
+      Left(BonusApiError.SystemError("Mock System Failure"))
+    ))
 }

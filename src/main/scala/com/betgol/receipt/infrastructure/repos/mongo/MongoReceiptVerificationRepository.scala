@@ -52,7 +52,7 @@ case class MongoReceiptVerificationRepository(db: MongoDatabase) extends Receipt
 }
 
 object MongoReceiptVerificationRepository {
-  final val CollectionName = "receipt_verification"
+  final val CollectionName = "receipt_verifications"
 
   val layer: ZLayer[MongoDatabase, Throwable, ReceiptVerificationRepository] =
     ZLayer.fromZIO {

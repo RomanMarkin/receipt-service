@@ -63,4 +63,13 @@ object Ids {
     @targetName("bonusCodeValue")
     def value: String = a
   }
+
+  opaque type BonusApiSessionCode = String
+  object BonusApiSessionCode {
+    def apply(a: String): BonusApiSessionCode = a
+  }
+  extension (a: BonusApiSessionCode) {
+    @targetName("bonusApiSessionCodeValue")
+    def value: String = a
+  }
 }

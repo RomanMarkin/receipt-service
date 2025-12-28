@@ -36,10 +36,11 @@ case class JsonPeConfig(url: String,
                         timeoutSeconds: Int)
 
 case class BonusServiceConfig(maxRetries: Int = 5,
-                              bettingClient: BonusClientConfig)
+                              bonusClient: BonusClientConfig)
 
 case class BonusClientConfig(url: String,
-                             token: String,
+                             appCode: String,
+                             lang: String = "en",
                              timeoutSeconds: Int)
 
 object AppConfig {
@@ -58,7 +59,7 @@ object AppConfig {
     live.project(_.bonusService)
 
   val bettingClient: ZLayer[Any, Config.Error, BonusClientConfig] =
-    live.project(_.bonusService.bettingClient)
+    live.project(_.bonusService.bonusClient)
 
   val apiPeruClient: ZLayer[Any, Config.Error, ApiPeruConfig] =
     live.project(_.verificationService.clients.apiPeru)

@@ -111,7 +111,7 @@ object VerificationServiceLive {
         ClientRaceResult(
           provider = None,
           status = ReceiptVerificationAttemptStatus.SystemError,
-          description = Some("Verification timed out (no provider responded in time)"),
+          description = Some("Verification timed out (no provider responded successfully in time)"),
           externalId = None
         )
       case Left(lastError) =>

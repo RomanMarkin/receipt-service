@@ -12,7 +12,7 @@ import com.betgol.receipt.services.VerificationClientsRaceSpec.test
 import zio.*
 import zio.test.*
 
-import java.time.{Instant, LocalDate}
+import java.time.Instant
 
 
 object VerificationClientsRaceSpec extends ZIOSpecDefault {
@@ -110,7 +110,7 @@ object VerificationClientsRaceSpec extends ZIOSpecDefault {
       } yield assertTrue(
         result.apiProvider.isEmpty,
         result.status eq ReceiptVerificationStatus.RetryScheduled,
-        result.statusDescription.exists(_.contains("Verification timed out (no provider responded in time)"))
+        result.statusDescription.exists(_.contains("Verification timed out (no provider responded successfully in time)"))
       )).provide(buildService(List(clientTooSlow1, clientTooSlow2)))
     },
 

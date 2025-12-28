@@ -11,9 +11,10 @@ import zio.ZLayer
 object MockBonusService {
   private val mockConfig = BonusServiceConfig(
     maxRetries = 5,
-    bettingClient = BonusClientConfig(
+    bonusClient = BonusClientConfig(
       url = "https://not-used-mock-url",
-      token = "not-used-mock-token",
+      appCode = "not-used-mock-app-code",
+      lang = "en",
       timeoutSeconds = 10
     )
   )

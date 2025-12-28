@@ -81,7 +81,7 @@ case class MongoReceiptSubmissionRepository(db: MongoDatabase) extends ReceiptSu
 
 
 object MongoReceiptSubmissionRepository {
-  final val CollectionName = "receipt_submission"
+  final val CollectionName = "receipt_submissions"
 
   val layer: ZLayer[MongoDatabase, Throwable, ReceiptSubmissionRepository] =
     ZLayer.fromZIO {

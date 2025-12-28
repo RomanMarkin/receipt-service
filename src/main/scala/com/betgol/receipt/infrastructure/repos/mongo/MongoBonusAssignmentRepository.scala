@@ -54,7 +54,7 @@ case class MongoBonusAssignmentRepository(db: MongoDatabase) extends BonusAssign
 }
 
 object MongoBonusAssignmentRepository {
-  final val CollectionName = "bonus_assignment"
+  final val CollectionName = "bonus_assignments"
   
   val layer: ZLayer[MongoDatabase, Throwable, BonusAssignmentRepository] =
     ZLayer.fromZIO {
