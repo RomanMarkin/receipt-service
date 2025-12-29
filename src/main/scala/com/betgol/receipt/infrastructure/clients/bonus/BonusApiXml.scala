@@ -65,18 +65,16 @@ object BonusApiXml {
         .when(statusNode != "100")
 
       actionNode = root \ "body" \ "action"
-
-      //TODO can we use servercode to identify bad session? then fail with the SessionError 
-      //serverCode = (actionNode \ "@servercode").text
+      serverCode = (actionNode \ "@servercode").text
+      _ <- ZIO.fail(BonusApiError.SessionError(s"API returned servercode $serverCode: Inactive session"))
+        .when(serverCode == "4381")
       
       assignedList = actionNode \ "AssignedUserBonusList" \ "AssignedUserBonus"
-
       isAssigned = assignedList.exists { node =>
         (node \ "UserGUID").text.trim == playerId.value
       }
 
       msgOpt = actionNode.headOption.flatMap(_.attribute("msg")).map(_.text)
-
       result <- if (isAssigned) {
         ZIO.succeed(BonusAssignmentResult(
           status = BonusAssignmentResultStatus.Assigned,

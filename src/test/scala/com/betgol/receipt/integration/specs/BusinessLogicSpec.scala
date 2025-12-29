@@ -5,6 +5,8 @@ import com.betgol.receipt.api.dto.{ReceiptRequest, ReceiptSubmissionResponse}
 import com.betgol.receipt.domain.models.SubmissionStatus
 import com.betgol.receipt.integration.specs.BusinessLogicSpec.makeReceiptData
 import com.betgol.receipt.integration.{BasicIntegrationSpec, SharedTestLayer}
+import com.betgol.receipt.mocks.services.{MockBonusService, MockVerificationService}
+import com.betgol.receipt.services.{ReceiptService, ReceiptServiceLive}
 import zio.*
 import zio.http.*
 import zio.json.*
@@ -15,6 +17,15 @@ import java.time.format.DateTimeFormatter
 
 
 object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
+
+  private val successfulPath: ZLayer[Any, Throwable, ReceiptService & Scope] =
+    ZLayer.make[ReceiptService & Scope](
+      SharedTestLayer.infraLayer,
+      MockVerificationService.validDocPath,
+      MockBonusService.bonusAssignedPath,
+      ReceiptServiceLive.layer,
+      Scope.default
+    )
 
   private def parseReceiptResponse(response: Response): ZIO[Any, String, ReceiptSubmissionResponse] =
     for {
@@ -198,5 +209,5 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
       }
     }
 
-  ).provideLayerShared(Scope.default >+> SharedTestLayer.successLayer.orDie)
+  ).provideLayerShared(successfulPath.orDie)
 }

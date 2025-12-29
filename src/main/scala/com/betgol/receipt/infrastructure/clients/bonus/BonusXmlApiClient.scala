@@ -80,10 +80,7 @@ case class BonusXmlApiClient(client: Client,
     localSessionCache.set(Some(code)).as(code)
 
   private def isSessionExpired(error: BonusApiError): Boolean = error match {
-    case BonusApiError.SystemError(msg, _) => //TODO maybe change to BonusApiError.SessionError 
-      // TODO see comment in parseBonusResponse. 
-      // Adjust this string matching to whatever the real XML API returns
-      msg.contains("Session") || msg.contains("expired") || msg.contains("Invalid") || msg.contains("status 10")
+    case BonusApiError.SessionError(msg) => true
     case _ => false
   }
   

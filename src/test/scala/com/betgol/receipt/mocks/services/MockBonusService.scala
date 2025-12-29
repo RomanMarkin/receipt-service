@@ -24,8 +24,26 @@ object MockBonusService {
     BonusServiceLive.layer
 
   val bonusAssignedPath: ZLayer[IdGenerator & BonusAssignmentRepository, Nothing, BonusService] = {
-    MockBonusApiClient.bonusAssignedPath >+>
     MockBonusEvaluator.bonusAvailablePath >+>
+    MockBonusApiClient.bonusAssignedPath >+>
     MockBonusService.layer
   }
+
+  val bonusRejectedPath: ZLayer[IdGenerator & BonusAssignmentRepository, Nothing, BonusService] = {
+    MockBonusEvaluator.bonusAvailablePath >+>
+    MockBonusApiClient.bonusRejectedPath >+>
+    MockBonusService.layer
+  }
+
+  val bonusNetworkErrorPath: ZLayer[IdGenerator & BonusAssignmentRepository, Nothing, BonusService] = {
+    MockBonusEvaluator.bonusAvailablePath >+>
+      MockBonusApiClient.networkErrorPath >+>
+      MockBonusService.layer
+  }
+
+  val systemErrorPath: ZLayer[IdGenerator & BonusAssignmentRepository, Nothing, BonusService] = {
+    MockBonusEvaluator.bonusAvailablePath >+>
+      MockBonusApiClient.systemErrorPath >+>
+      MockBonusService.layer
+  }  
 }
