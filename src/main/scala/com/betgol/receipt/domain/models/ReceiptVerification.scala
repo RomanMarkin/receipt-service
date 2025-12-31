@@ -48,6 +48,5 @@ enum ReceiptVerificationAttemptStatus {
   case Valid
   case NotFound
   case Annulled
-  case Failed
   case SystemError
 }

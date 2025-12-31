@@ -33,7 +33,7 @@ case class BonusAssignmentAttempt(status: BonusAssignmentAttemptStatus,
                                   description: Option[String])
 
 enum BonusAssignmentStatus {
-  case NoBonus             // No bonus available according to BonusEvaluator
+  case NoBonus             // No bonus available, according to BonusEvaluator
   case Pending             // Created, not yet processed
   case RetryScheduled      // Last attempt failed, next attempt is expected
   case Assigned            // Bonus successfully assigned

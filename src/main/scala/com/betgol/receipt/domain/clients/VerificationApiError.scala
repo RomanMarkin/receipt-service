@@ -1,5 +1,6 @@
 package com.betgol.receipt.domain.clients
 
+
 sealed abstract class VerificationApiError(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 object VerificationApiError {
   case class SerializationError(msg: String, cause: Throwable = null) extends VerificationApiError(msg, cause)

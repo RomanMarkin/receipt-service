@@ -1,43 +1,38 @@
-package com.betgol.receipt.integration.specs
+package com.betgol.receipt.integration.specs.validation
 
 import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.api.dto.{ReceiptRequest, ReceiptSubmissionResponse}
 import com.betgol.receipt.domain.models.SubmissionStatus
-import com.betgol.receipt.integration.specs.BusinessLogicSpec.makeReceiptData
-import com.betgol.receipt.integration.{BasicIntegrationSpec, SharedTestLayer}
+import com.betgol.receipt.integration.specs.validation.ReceiptFormatValidationSpec.makeReceiptData
+import com.betgol.receipt.integration.{SharedTestLayer, TestHelpers, TestSuiteLayer}
 import com.betgol.receipt.mocks.services.{MockBonusService, MockVerificationService}
-import com.betgol.receipt.services.{ReceiptService, ReceiptServiceLive}
-import zio.*
 import zio.http.*
 import zio.json.*
 import zio.test.*
+import zio.{Scope, ZIO}
 
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 
-object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
+object ReceiptFormatValidationSpec extends TestHelpers {
 
-  private val successfulPath: ZLayer[Any, Throwable, ReceiptService & Scope] =
-    ZLayer.make[ReceiptService & Scope](
-      SharedTestLayer.infraLayer,
-      MockVerificationService.validDocPath,
-      MockBonusService.bonusAssignedPath,
-      ReceiptServiceLive.layer,
-      Scope.default
-    )
+  private val layer = TestSuiteLayer.make(
+    MockVerificationService.validDocPath,
+    MockBonusService.bonusAssignedPath,
+  )
 
-  private def parseReceiptResponse(response: Response): ZIO[Any, String, ReceiptSubmissionResponse] =
+  private def parseApiResponse(response: Response): ZIO[Any, String, ReceiptSubmissionResponse] =
     for {
       body <- response.body.asString
         .mapError(err => s"Failed to parse API response: $err")
-      dto <- ZIO.fromEither(body.fromJson[ReceiptSubmissionResponse])
+      apiResponse <- ZIO.fromEither(body.fromJson[ReceiptSubmissionResponse])
         .mapError(err => s"Failed to parse API response: $err. Body was: $body")
-    } yield dto
+    } yield apiResponse
 
-  override def spec = suite("Business Logic Validation")(
+  def suiteSpec = suite("Domain Rules: Receipt Data Parsing")(
 
-    test("Insufficient data fields (<7 fields)") {
+    test("Rejects receipt data string with missing segments (insufficient fields)") {
       val insufficientDataFieldsGen = Gen.int(0, 6).flatMap { numSegments =>
         Gen.listOfN(numSegments)(Gen.alphaNumericString).map(_.mkString("|"))
       }
@@ -47,34 +42,34 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield assertTrue(
           response.status == Status.Ok,
-          dto.receiptSubmissionId.nonEmpty,
-          dto.status == SubmissionStatus.InvalidReceiptData.toString,
-          dto.message.exists(_.contains("Insufficient data fields"))
+          apiResponse.receiptSubmissionId.isValidUuid,
+          apiResponse.status == SubmissionStatus.InvalidReceiptData.toString,
+          apiResponse.message.exists(_.contains("Insufficient data fields"))
         )
       }
     },
 
-    test("Rejects invalid issuer tax id (RUC) formats (letters or wrong length)") {
+    test("Rejects invalid Issuer Tax ID (RUC) format (non-numeric or wrong length)") {
       check(Gen.string.filter(s => s.length != 11 || !s.forall(_.isDigit))) { invalidRuc =>
         val payload = ReceiptRequest(makeReceiptData(issuerTaxId = invalidRuc), "player-1", "PE").toJson
         val req = buildRequest(payload)
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield assertTrue(
           response.status == Status.Ok,
-          dto.receiptSubmissionId.nonEmpty,
-          dto.status == SubmissionStatus.InvalidReceiptData.toString,
-          dto.message.exists(_.contains("Invalid Issuer Tax Id (RUC)"))
+          apiResponse.receiptSubmissionId.isValidUuid,
+          apiResponse.status == SubmissionStatus.InvalidReceiptData.toString,
+          apiResponse.message.exists(_.contains("Invalid Issuer Tax Id (RUC)"))
         )
       }
     },
 
-    test("Invalid document type (letters, wrong length, or wrong digits)") {
+    test("Rejects invalid Document Type codes (must be '01' or '03')") {
       val invalidDocTypeGen = Gen.oneOf(
         Gen.alphaNumericString.filter(_.length != 2), //wrong length
         Gen.stringN(2)(Gen.alphaNumericChar)
@@ -86,25 +81,25 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield assertTrue(
           response.status == Status.Ok,
-          dto.receiptSubmissionId.nonEmpty,
-          dto.status == SubmissionStatus.InvalidReceiptData.toString,
-          dto.message.exists(_.contains("Invalid document type"))
+          apiResponse.receiptSubmissionId.isValidUuid,
+          apiResponse.status == SubmissionStatus.InvalidReceiptData.toString,
+          apiResponse.message.exists(_.contains("Invalid document type"))
         )
       }
     },
 
-    test("Rejects invalid document series formats (invalid first letter or wrong length)") {
+    test("Rejects invalid Document Series format (must start with F/B followed by 3 alphanumeric chars)") {
       val invalidSeriesGen = Gen.oneOf(
-        Gen.alphaNumericString.filter(_.length != 4), //wrong length
+        Gen.alphaNumericString.filter(_.length != 4),
         Gen.stringN(4)(Gen.alphaNumericChar)
-          .filter(s => !s.startsWith("F") && !s.startsWith("B")), // wrong start char
+          .filter(s => !s.startsWith("F") && !s.startsWith("B")),
         for {
           prefix <- Gen.elements("F", "B")
           suffix <- Gen.stringN(3)(Gen.alphaNumericChar).filter(s => !s.forall(_.isDigit))
-        } yield s"$prefix$suffix", // wrong 2-4 digits
+        } yield s"$prefix$suffix",
         Gen.elements("f001", "b999") // lowercase
       )
 
@@ -114,51 +109,51 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield assertTrue(
           response.status == Status.Ok,
-          dto.receiptSubmissionId.nonEmpty,
-          dto.status == SubmissionStatus.InvalidReceiptData.toString,
-          dto.message.exists(_.contains("Invalid document series"))
+          apiResponse.receiptSubmissionId.isValidUuid,
+          apiResponse.status == SubmissionStatus.InvalidReceiptData.toString,
+          apiResponse.message.exists(_.contains("Invalid document series"))
         )
       }
     },
 
-    test("Rejects invalid document number formats (letters or wrong length)") {
+    test("Rejects invalid Document Number format (must be 8 digits)") {
       check(Gen.string.filter(s => s.length != 8 || !s.forall(_.isDigit))) { invalidDocNumber =>
         val payload = ReceiptRequest(makeReceiptData(docNumber = invalidDocNumber), "player-1", "PE").toJson
         val req = buildRequest(payload)
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield assertTrue(
           response.status == Status.Ok,
-          dto.receiptSubmissionId.nonEmpty,
-          dto.status == SubmissionStatus.InvalidReceiptData.toString,
-          dto.message.exists(_.contains("Invalid document number"))
+          apiResponse.receiptSubmissionId.isValidUuid,
+          apiResponse.status == SubmissionStatus.InvalidReceiptData.toString,
+          apiResponse.message.exists(_.contains("Invalid document number"))
         )
       }
     },
 
-    test("Rejects invalid Total Amount") {
+    test("Rejects invalid or non-numeric Total Amount") {
       val invalidAmounts = Gen.fromIterable(List("2.39.13", "ABC", "-50.00"))
       check(invalidAmounts) { badAmount =>
         val payload = ReceiptRequest(makeReceiptData(total = badAmount), "player-1", "PE").toJson
         val req = buildRequest(payload)
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield assertTrue(
           response.status == Status.Ok,
-          dto.receiptSubmissionId.nonEmpty,
-          dto.status == SubmissionStatus.InvalidReceiptData.toString,
-          dto.message.exists(_.contains("Invalid total amount"))
+          apiResponse.receiptSubmissionId.isValidUuid,
+          apiResponse.status == SubmissionStatus.InvalidReceiptData.toString,
+          apiResponse.message.exists(_.contains("Invalid total amount"))
         )
       }
     },
 
-    test("Invalid date format (neigher yyyy-MM-dd, not dd/MM/yyyy)") {
+    test("Rejects invalid Date formats (supports only yyyy-MM-dd or dd/MM/yyyy)") {
       val invalidDateGen: Gen[Any, String] = Gen.oneOf(
         Gen.const("2025/02/22"), // wrong separator for YYYY start
         Gen.const("22-02-2025"), // wrong separator for DD start
@@ -172,17 +167,17 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
 
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield assertTrue(
           response.status == Status.Ok,
-          dto.receiptSubmissionId.nonEmpty,
-          dto.status == SubmissionStatus.InvalidReceiptData.toString,
-          dto.message.exists(_.contains("Invalid date format"))
+          apiResponse.receiptSubmissionId.isValidUuid,
+          apiResponse.status == SubmissionStatus.InvalidReceiptData.toString,
+          apiResponse.message.exists(_.contains("Invalid date format"))
         )
       }
     },
 
-    test("Successful registration (supported date formats)") {
+    test("Accepts and parses valid receipt data formats (Happy Path)") {
       val validReceiptGen: Gen[Any, String] = for {
         date <- Gen.localDate(LocalDate.of(2020, 1, 1), LocalDate.of(2025, 12, 31))
         allowedPattern <- Gen.elements("yyyy-MM-dd", "dd/MM/yyyy")
@@ -198,16 +193,16 @@ object BusinessLogicSpec extends ZIOSpecDefault with BasicIntegrationSpec {
         
         for {
           response <- ReceiptRoutes.routes.runZIO(req)
-          dto <- parseReceiptResponse(response)
+          apiResponse <- parseApiResponse(response)
         } yield
           assertTrue(
             response.status == Status.Ok,
-            dto.receiptSubmissionId.nonEmpty,
-            dto.status == SubmissionStatus.BonusAssigned.toString,
-            dto.message.isEmpty
+            apiResponse.receiptSubmissionId.isValidUuid,
+            apiResponse.status == SubmissionStatus.BonusAssigned.toString,
+            apiResponse.message.isEmpty
           )
       }
     }
 
-  ).provideLayerShared(successfulPath.orDie)
+  ).provideSomeLayer[SharedTestLayer.InfraEnv & Scope](layer)
 }

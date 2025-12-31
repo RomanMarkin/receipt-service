@@ -22,4 +22,28 @@ object MockVerificationService {
   val docNotFoundPath: ZLayer[IdGenerator & ReceiptVerificationRepository, Nothing, VerificationService] =
     MockVerificationClientProvider.docNotFoundPath >>>
       MockVerificationService.layer
+
+  val docAnnulledPath: ZLayer[IdGenerator & ReceiptVerificationRepository, Nothing, VerificationService] =
+    MockVerificationClientProvider.docAnnulledPath >>>
+      MockVerificationService.layer
+
+  val networkErrorPath: ZLayer[IdGenerator & ReceiptVerificationRepository, Nothing, VerificationService] =
+    MockVerificationClientProvider.networkErrorPath >>>
+      MockVerificationService.layer
+  
+  val serverErrorPath: ZLayer[IdGenerator & ReceiptVerificationRepository, Nothing, VerificationService] =
+    MockVerificationClientProvider.serverErrorPath >>>
+      MockVerificationService.layer
+
+  val clientErrorPath: ZLayer[IdGenerator & ReceiptVerificationRepository, Nothing, VerificationService] =
+    MockVerificationClientProvider.clientErrorPath >>>
+      MockVerificationService.layer
+
+  val serializationErrorPath: ZLayer[IdGenerator & ReceiptVerificationRepository, Nothing, VerificationService] =
+    MockVerificationClientProvider.serializationErrorPath >>>
+      MockVerificationService.layer
+
+  val deserializationErrorPath: ZLayer[IdGenerator & ReceiptVerificationRepository, Nothing, VerificationService] =
+    MockVerificationClientProvider.deserializationErrorPath >>>
+      MockVerificationService.layer    
 }

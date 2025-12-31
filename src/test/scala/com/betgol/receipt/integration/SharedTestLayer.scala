@@ -12,8 +12,15 @@ import zio.{Scope, ZLayer}
 
 
 object SharedTestLayer {
-  val infraLayer: ZLayer[Scope, Throwable,
-    MongoDatabase & ReceiptSubmissionRepository & ReceiptVerificationRepository & BonusAssignmentRepository & ReceiptParser & IdGenerator] =
+
+  type InfraEnv = MongoDatabase &
+    ReceiptSubmissionRepository &
+    ReceiptVerificationRepository &
+    BonusAssignmentRepository &
+    ReceiptParser &
+    IdGenerator
+
+  val infraLayer: ZLayer[Scope, Throwable, InfraEnv] =
     TestMongoLayer.layer >+>
     (MongoReceiptSubmissionRepository.layer ++ MongoReceiptVerificationRepository.layer ++ MongoBonusAssignmentRepository.layer) ++
     SunatQrParser.layer ++

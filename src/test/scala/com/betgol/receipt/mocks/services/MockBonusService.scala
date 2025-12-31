@@ -29,6 +29,12 @@ object MockBonusService {
     MockBonusService.layer
   }
 
+  val bonusNotAvailablePath: ZLayer[IdGenerator & BonusAssignmentRepository, Nothing, BonusService] = {
+    MockBonusEvaluator.bonusNotAvailablePath >+>
+    MockBonusApiClient.bonusRejectedPath >+> //this layer should not be used, as bonus not even available
+    MockBonusService.layer
+  }
+
   val bonusRejectedPath: ZLayer[IdGenerator & BonusAssignmentRepository, Nothing, BonusService] = {
     MockBonusEvaluator.bonusAvailablePath >+>
     MockBonusApiClient.bonusRejectedPath >+>
