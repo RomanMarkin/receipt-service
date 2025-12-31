@@ -16,7 +16,6 @@ import zio.test.*
 import zio.{Clock, Schedule, Scope, ZIO, durationInt}
 
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import scala.jdk.CollectionConverters.*
 
@@ -30,18 +29,6 @@ object ReceiptNotFoundSpec extends TestHelpers {
 
   val suiteSpec = suite ("Receipt Verification: Receipt Not Found")(
     test("Schedules retry and prevents bonus assignment when receipt is not found by provider") {
-      val validReceiptDataGen = for {
-        issuerTaxId <- Gen.stringN(11)(Gen.numericChar)
-        docType = "01"
-        docSeries <- Gen.elements("F002", "B002")
-        docNumber <- Gen.stringN(8)(Gen.numericChar)
-        total <- Gen.double(10.0, 1000.0).map(d => BigDecimal(d).setScale(2, BigDecimal.RoundingMode.HALF_UP).toString)
-        dateObj <- Gen.localDate(LocalDate.of(2020, 1, 1), LocalDate.of(2025, 12, 31))
-        pattern <- Gen.elements("yyyy-MM-dd", "dd/MM/yyyy")
-        dateStr = dateObj.format(DateTimeFormatter.ofPattern(pattern))
-        receiptData = makeReceiptData(issuerTaxId = issuerTaxId, docType = docType, docSeries = docSeries, docNumber = docNumber, total = total, date = dateStr)
-      } yield (issuerTaxId, docType, docSeries, docNumber, total, dateObj, receiptData)
-
       check(validReceiptDataGen) { case (expectedIssuerTaxId, expectedDocType, expectedDocSeries, expectedDocNumber, expectedTotal, expectedDateObj, receiptData) =>
         val playerId = "player-persistence-test"
         val country = "PE"
