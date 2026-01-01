@@ -8,14 +8,14 @@ import com.betgol.receipt.domain.models.*
 import com.betgol.receipt.domain.repos.ReceiptVerificationRepository
 import com.betgol.receipt.domain.services.{VerificationService, VerificationServiceLive}
 import com.betgol.receipt.infrastructure.services.UuidV7IdGenerator
-import com.betgol.receipt.services.VerificationClientsRaceSpec.test
+import com.betgol.receipt.services.VerificationServiceRaceSpec.test
 import zio.*
 import zio.test.*
 
 import java.time.Instant
 
 
-object VerificationClientsRaceSpec extends ZIOSpecDefault {
+object VerificationServiceRaceSpec extends ZIOSpecDefault {
 
   case class DelayedMockClient(name: String, delay: Duration, result: VerificationResult) extends VerificationApiClient {
     override def providerName: String = name
