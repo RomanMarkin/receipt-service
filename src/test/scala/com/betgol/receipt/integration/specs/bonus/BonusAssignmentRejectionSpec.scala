@@ -104,13 +104,13 @@ object BonusAssignmentRejectionSpec extends TestHelpers {
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
           apiResponse.status == SubmissionStatus.BonusAssignmentRejected.toString,
-          apiResponse.message.isEmpty, //TODO is it OK? Compose own error message to prevent leaking errors from upstream server?
+          apiResponse.message.contains("Bonus Code: TEST_BONUS"),
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.BonusAssignmentRejected.toString),
-          submissionDoc.getStringOpt("failureReason").isEmpty, //TODO is it OK? I think no. We should habe "Mock Rejection: User ineligible" here
+          submissionDoc.getStringOpt("statusDescription").contains("Mock Rejection: User ineligible"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),

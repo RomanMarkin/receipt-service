@@ -95,13 +95,13 @@ object VerificationSystemErrorSpec extends TestHelpers {
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
           apiResponse.status == SubmissionStatus.VerificationPending.toString,
-          apiResponse.message.contains("Verification pending retry"), //TODO replace with "Provider Server Error" in service OR "Mock Server Error"?
+          apiResponse.message.isEmpty,
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationPending.toString),
-          submissionDoc.getStringOpt("failureReason").isEmpty, //TODO replace with "Provider Server Error" in service OR "Mock Server Error"?
+          submissionDoc.getStringOpt("statusDescription").contains("All providers failed. Last error: Server Error (500) - Mock Server Error"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),

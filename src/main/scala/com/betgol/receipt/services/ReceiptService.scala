@@ -7,7 +7,7 @@ import com.betgol.receipt.domain.models.*
 import com.betgol.receipt.domain.parsers.ReceiptParser
 import com.betgol.receipt.domain.repos.ReceiptSubmissionRepository
 import com.betgol.receipt.domain.services.{BonusService, IdGenerator, VerificationService}
-import com.betgol.receipt.services.ReceiptServiceLive._
+import com.betgol.receipt.services.ReceiptServiceLive.*
 import zio.*
 
 
@@ -49,7 +49,7 @@ case class ReceiptServiceLive(idGenerator: IdGenerator,
 
         case SubmissionStatus.VerificationPending =>
           ZIO.logInfo(s"Receipt $id verification pending retry.") *>
-            ZIO.succeed(ReceiptSubmissionResult(id, SubmissionStatus.VerificationPending, Some("Verification pending retry")))
+            ZIO.succeed(ReceiptSubmissionResult(id, SubmissionStatus.VerificationPending))
 
         case status =>
           val msg = vOutcome.statusDescription.getOrElse("Verification rejected or failed")
@@ -70,7 +70,7 @@ case class ReceiptServiceLive(idGenerator: IdGenerator,
 
       _ <- ZIO.logInfo(s"Bonus assignment for $submissionId completed: $submissionStatus")
 
-    } yield ReceiptSubmissionResult(submissionId, submissionStatus)
+    } yield ReceiptSubmissionResult(submissionId, submissionStatus, bOutcome.code.map(c => s"Bonus Code: ${c.value}"))
 
   private def handleInvalidReceipt(cmd: SubmitReceipt, errorMsg: String): IO[ReceiptSubmissionError, ReceiptSubmissionResult] =
     for {

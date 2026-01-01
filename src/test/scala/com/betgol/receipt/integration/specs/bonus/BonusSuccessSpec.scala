@@ -104,13 +104,13 @@ object BonusSuccessSpec extends TestHelpers {
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
           apiResponse.status == SubmissionStatus.BonusAssigned.toString,
-          apiResponse.message.isEmpty, //TODO provide the code of assigned bonus?
+          apiResponse.message.contains("Bonus Code: TEST_BONUS"),
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.BonusAssigned.toString),
-          submissionDoc.getStringOpt("failureReason").isEmpty,
+          submissionDoc.getStringOpt("statusDescription").contains("Mock Bonus Assigned"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),

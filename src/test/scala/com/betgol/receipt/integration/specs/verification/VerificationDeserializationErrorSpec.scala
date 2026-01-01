@@ -93,14 +93,14 @@ object VerificationDeserializationErrorSpec extends TestHelpers {
           // API Response assertions
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
-          apiResponse.status == SubmissionStatus.VerificationPending.toString, //TODO do not retry on deserialization errors. Make VerificationFailed
-          apiResponse.message.contains("Verification pending retry"), //TODO replace with "Deserialization Error" in service OR "Mock Deserialization Error"?
+          apiResponse.status == SubmissionStatus.VerificationPending.toString, // Retrying after a Deserialization Error is acceptable here, as the next attempt may route to a different provider that can successfully process the request.
+          apiResponse.message.isEmpty,
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
-          submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationPending.toString), //TODO do not retry on deserialization errors. Make VerificationFailed
-          submissionDoc.getStringOpt("failureReason").isEmpty, //TODO replace with "Deserialization Error" in service OR "Mock Deserialization Error"?
+          submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationPending.toString),
+          submissionDoc.getStringOpt("statusDescription").contains("All providers failed. Last error: Mock Deserialization Error"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),
@@ -116,7 +116,7 @@ object VerificationDeserializationErrorSpec extends TestHelpers {
           fiscalDocOpt.flatMap(_.getBigDecimalOpt("totalAmount")).map(_.toString).contains(expectedTotal),
 
           verificationOpt.isDefined,
-          verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.RetryScheduled.toString), //TODO do not retry on deserialization errors.
+          verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.RetryScheduled.toString),
           verificationOpt.flatMap(_.getStringOpt("statusDescription")).contains("All providers failed. Last error: Mock Deserialization Error"),
           verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isBefore(before))).contains(false),
           verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isAfter(after))).contains(false),
@@ -129,7 +129,7 @@ object VerificationDeserializationErrorSpec extends TestHelpers {
           verificationDoc.getStringOpt("submissionId") == submissionIdOpt,
           verificationDoc.getStringOpt("playerId").contains(playerId),
           verificationDoc.getStringOpt("country").contains("PE"),
-          verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.RetryScheduled.toString), //TODO do not retry on deserialization errors.
+          verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.RetryScheduled.toString),
           verificationAttempts.size == 1,
           firstVerificationAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationAttemptStatus.SystemError.toString),

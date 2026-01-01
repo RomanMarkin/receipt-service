@@ -101,7 +101,7 @@ object BonusUnavailableSpec extends TestHelpers {
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.NoBonusAvailable.toString),
-          submissionDoc.getStringOpt("failureReason").isEmpty,
+          submissionDoc.getStringOpt("statusDescription").isEmpty,
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),

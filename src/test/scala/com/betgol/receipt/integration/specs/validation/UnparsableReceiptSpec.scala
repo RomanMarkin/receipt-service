@@ -63,7 +63,7 @@ object UnparsableReceiptSpec extends TestHelpers {
 
           submissionDoc.getStringOpt("_id").isDefined,
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.InvalidReceiptData.toString),
-          submissionDoc.getStringOpt("failureReason").contains("Insufficient data fields"),
+          submissionDoc.getStringOpt("statusDescription").contains("Insufficient data fields"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("rawInput")).contains(invalidReceiptData),

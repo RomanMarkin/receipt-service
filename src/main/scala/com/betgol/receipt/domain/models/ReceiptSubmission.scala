@@ -12,7 +12,7 @@ case class ReceiptSubmission(id: SubmissionId,
                              fiscalDocument: Option[FiscalDocument],
                              verification: Option[VerificationOutcome],
                              bonus: Option[BonusOutcome],
-                             failureReason: Option[String])
+                             statusDescription: Option[String])
 
 object ReceiptSubmission {
   def validSubmission(id: SubmissionId, playerId: PlayerId, country: CountryCode, rawInput: String, fiscalDocument: FiscalDocument, now: Instant): ReceiptSubmission =
@@ -22,9 +22,9 @@ object ReceiptSubmission {
       fiscalDocument = Some(fiscalDocument),
       verification = None,
       bonus = None,
-      failureReason = None)
+      statusDescription = None)
 
-  def invalidSubmission(id: SubmissionId, playerId: PlayerId, country: CountryCode, rawInput: String, failureReason: String, now: Instant): ReceiptSubmission =
+  def invalidSubmission(id: SubmissionId, playerId: PlayerId, country: CountryCode, rawInput: String, statusDescription: String, now: Instant): ReceiptSubmission =
     ReceiptSubmission(
       id = id,
       status = SubmissionStatus.InvalidReceiptData,
@@ -32,7 +32,7 @@ object ReceiptSubmission {
       fiscalDocument = None,
       verification = None,
       bonus = None,
-      failureReason = Some(failureReason))
+      statusDescription = Some(statusDescription))
 }
 
 case class SubmissionMetadata(playerId: PlayerId,

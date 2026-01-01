@@ -6,6 +6,7 @@ import com.betgol.receipt.domain.models.{BonusOutcome, ReceiptSubmission, Submis
 import com.betgol.receipt.domain.repos.ReceiptSubmissionRepository
 import com.betgol.receipt.infrastructure.repos.mongo.mappers.ReceiptSubmissionMappers.toBson
 import org.mongodb.scala.*
+import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex}
 import org.mongodb.scala.model.Updates.*
@@ -51,31 +52,44 @@ case class MongoReceiptSubmissionRepository(db: MongoDatabase) extends ReceiptSu
   }
 
   override def updateVerificationOutcome(submissionId: SubmissionId, status: SubmissionStatus, verification: VerificationOutcome): IO[RepositoryError, Unit] = {
-    val filter = equal("_id", submissionId.value)
-    val update = combine(
-      set("status", status.toString),
+    updateSubmissionState(
+      submissionId,
+      status,
+      verification.statusDescription,
       set("verification", verification.toBson)
     )
-    ZIO.fromFuture(_ => receiptSubmissions.updateOne(filter, update).toFuture())
-      .flatMap { res =>
-        if (res.getModifiedCount == 0) ZIO.fail(RepositoryError.NotFound(s"ReceiptSubmission $submissionId not found"))
-        else ZIO.unit
-      }
-      .mapError { t => RepositoryError.UpdateError(s"Failed to update verification outcome for ReceiptSubmission ${submissionId.value}. Cause: ${t.getMessage}", t) }
   }
 
   override def updateBonusOutcome(submissionId: SubmissionId, status: SubmissionStatus, bonus: BonusOutcome): IO[RepositoryError, Unit] = {
-    val filter = equal("_id", submissionId.value)
-    val update = combine(
-      set("status", status.toString),
+    updateSubmissionState(
+      submissionId,
+      status,
+      bonus.statusDescription,
       set("bonus", bonus.toBson)
     )
-    ZIO.fromFuture(_ => receiptSubmissions.updateOne(filter, update).toFuture())
+  }
+
+  private def updateSubmissionState(submissionId: SubmissionId,
+                                    status: SubmissionStatus,
+                                    statusDescription: Option[String],
+                                    additionalUpdates: Bson*): IO[RepositoryError, Unit] = {
+
+    val mandatoryUpdates = List(set("status", status.toString))
+    val optionalUpdate = statusDescription match {
+      case Some(r) => set("statusDescription", r)
+      case None => unset("statusDescription")
+    }
+    val allUpdates = combine(mandatoryUpdates ++ additionalUpdates :+ optionalUpdate: _*)
+
+    val filter = equal("_id", submissionId.value)
+    ZIO.fromFuture(_ => receiptSubmissions.updateOne(filter, allUpdates).toFuture())
       .flatMap { res =>
-        if (res.getModifiedCount == 0) ZIO.fail(RepositoryError.NotFound(s"ReceiptSubmission $submissionId not found"))
-        else ZIO.unit
+        if (res.getMatchedCount == 0)
+          ZIO.fail(RepositoryError.NotFound(s"ReceiptSubmission $submissionId not found"))
+        else
+          ZIO.unit
       }
-      .mapError { t => RepositoryError.UpdateError(s"Failed to update bonus outcome for ReceiptSubmission ${submissionId.value}. Cause: ${t.getMessage}", t) }
+      .mapError { t => RepositoryError.UpdateError(s"Failed to update submission ${submissionId.value}. Cause: ${t.getMessage}", t) }
   }
 }
 

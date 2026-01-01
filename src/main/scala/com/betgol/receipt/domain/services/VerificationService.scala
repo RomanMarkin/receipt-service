@@ -144,7 +144,7 @@ object VerificationServiceLive {
           ReceiptVerificationStatus.Confirmed
         case ReceiptVerificationAttemptStatus.Annulled =>
           ReceiptVerificationStatus.Annulled
-        case _ =>
+        case ReceiptVerificationAttemptStatus.NotFound | ReceiptVerificationAttemptStatus.SystemError =>
           if (currentAttempt < maxRetries) ReceiptVerificationStatus.RetryScheduled
           else ReceiptVerificationStatus.Exhausted
       }

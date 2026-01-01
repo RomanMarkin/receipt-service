@@ -199,7 +199,7 @@ object ReceiptFormatValidationSpec extends TestHelpers {
             response.status == Status.Ok,
             apiResponse.receiptSubmissionId.isValidUuid,
             apiResponse.status == SubmissionStatus.BonusAssigned.toString,
-            apiResponse.message.isEmpty
+            apiResponse.message.contains("Bonus Code: TEST_BONUS")
           )
       }
     }

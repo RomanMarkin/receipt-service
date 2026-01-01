@@ -100,7 +100,7 @@ case class BonusXmlApiClient(client: Client,
         .mapError(e => BonusApiError.NetworkError(s"Network error: ${e.getMessage}", e))
         .flatMap { response =>
           response.body.asString
-            .mapError(e => BonusApiError.SystemError(s"Read error: ${e.getMessage}", e))
+            .mapError(e => BonusApiError.NetworkError(s"Read error: ${e.getMessage}", e))
         }
     }
 }

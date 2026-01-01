@@ -99,7 +99,7 @@ object ReceiptAnnulledSpec extends TestHelpers {
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationRejected.toString),
-          submissionDoc.getStringOpt("failureReason").isEmpty, //TODO is it OK? I think no. We should habe "Mock Annulled" here
+          submissionDoc.getStringOpt("statusDescription").contains("Mock Annulled"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),

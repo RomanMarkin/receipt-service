@@ -104,13 +104,13 @@ object BonusSystemErrorSpec extends TestHelpers {
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
           apiResponse.status == SubmissionStatus.BonusAssignmentPending.toString,
-          apiResponse.message.isEmpty, //TODO is it OK? Compose own error message to prevent leaking errors from upstream server?
+          apiResponse.message.contains("Bonus Code: TEST_BONUS"),
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.BonusAssignmentPending.toString),
-          submissionDoc.getStringOpt("failureReason").isEmpty, //TODO is it OK? I think no. We should habe "Mock System Failure" here
+          submissionDoc.getStringOpt("statusDescription").contains("Mock System Failure"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),

@@ -94,13 +94,13 @@ object VerificationNetworkFailureSpec extends TestHelpers {
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
           apiResponse.status == SubmissionStatus.VerificationPending.toString,
-          apiResponse.message.contains("Verification pending retry"), //TODO replace with "Provider Network Error" in service OR "Mock Network Error"?
+          apiResponse.message.isEmpty,
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
           submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationPending.toString),
-          submissionDoc.getStringOpt("failureReason").isEmpty, //TODO replace with "Provider Network Error" in service OR "Mock Network Error"?
+          submissionDoc.getStringOpt("statusDescription").contains("All providers failed. Last error: Mock Network Error"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),

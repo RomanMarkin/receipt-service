@@ -28,8 +28,8 @@ object ReceiptSubmissionMappers {
       rs.bonus.foreach { b =>
         doc.append("bonus", b.toBson)
       }
-      rs.failureReason.foreach { reason =>
-        doc.append("failureReason", reason.toBsonString)
+      rs.statusDescription.foreach { reason =>
+        doc.append("statusDescription", reason.toBsonString)
       }
       doc
     }
@@ -58,7 +58,7 @@ object ReceiptSubmissionMappers {
         bonusOpt = doc.getDocOpt("bonus")
           .flatMap(_.toBonusOutcome.toOption)
 
-        failureReasonOpt = doc.getStringOpt("failureReason")
+        statusDescriptionOpt = doc.getStringOpt("statusDescription")
       } yield ReceiptSubmission(
         id = id,
         status = status,
@@ -66,7 +66,7 @@ object ReceiptSubmissionMappers {
         fiscalDocument = fiscalDocOpt,
         verification = verification,
         bonus = bonusOpt,
-        failureReason = failureReasonOpt
+        statusDescription = statusDescriptionOpt
       )
     }
   }

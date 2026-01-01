@@ -93,14 +93,14 @@ object VerificationClientErrorSpec extends TestHelpers {
           // API Response assertions
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
-          apiResponse.status == SubmissionStatus.VerificationPending.toString, //TODO do not retry on client errors. Make VerificationFailed
-          apiResponse.message.contains("Verification pending retry"), //TODO replace with "Client Error" in service OR "Mock Client Error"?
+          apiResponse.status == SubmissionStatus.VerificationPending.toString, // Retrying after a Client Error is acceptable here, as the next attempt may route to a different provider that can successfully process the request.
+          apiResponse.message.isEmpty,
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
           submissionDoc.getStringOpt("status").contains(apiResponse.status),
-          submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationPending.toString), //TODO do not retry on client errors. Make VerificationFailed
-          submissionDoc.getStringOpt("failureReason").isEmpty, //TODO replace with "Client Error" in service OR "Mock Client Error"?
+          submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationPending.toString),
+          submissionDoc.getStringOpt("statusDescription").contains("All providers failed. Last error: Client Error (400) - Mock Client Error"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),
@@ -116,7 +116,7 @@ object VerificationClientErrorSpec extends TestHelpers {
           fiscalDocOpt.flatMap(_.getBigDecimalOpt("totalAmount")).map(_.toString).contains(expectedTotal),
 
           verificationOpt.isDefined,
-          verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.RetryScheduled.toString), //TODO do not retry on client errors.
+          verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.RetryScheduled.toString),
           verificationOpt.flatMap(_.getStringOpt("statusDescription")).contains("All providers failed. Last error: Client Error (400) - Mock Client Error"),
           verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isBefore(before))).contains(false),
           verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isAfter(after))).contains(false),
@@ -129,7 +129,7 @@ object VerificationClientErrorSpec extends TestHelpers {
           verificationDoc.getStringOpt("submissionId") == submissionIdOpt,
           verificationDoc.getStringOpt("playerId").contains(playerId),
           verificationDoc.getStringOpt("country").contains("PE"),
-          verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.RetryScheduled.toString), //TODO do not retry on client errors.
+          verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.RetryScheduled.toString),
           verificationAttempts.size == 1,
           firstVerificationAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationAttemptStatus.SystemError.toString),
