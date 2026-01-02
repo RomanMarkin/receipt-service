@@ -66,15 +66,20 @@ case class BonusXmlApiClient(client: Client,
     } yield validSession
 
   private def executeLogin: IO[BonusApiError, BonusApiSessionCode] =
-    for {
-      now         <- Clock.currentDateTime
-      requestBody =  BonusApiXml.buildLoginRequest(config, now)
-      response    <- sendRequest(requestBody)
-      newCode     <- BonusApiXml.parseLoginResponse(response)
-      _           <- sessionRepo.saveSession(BonusApiSession(newCode, now.toInstant))
+    (for {
+      now <- Clock.currentDateTime
+      requestBody = BonusApiXml.buildLoginRequest(config, now)
+      _ <- ZIO.logInfo("Attempting Bonus API Login to refresh session...")
+      response <- sendRequest(requestBody)
+      newCode <- BonusApiXml.parseLoginResponse(response)
+      _ <- sessionRepo.saveSession(BonusApiSession(newCode, now.toInstant))
         .mapError(e => BonusApiError.SystemError(s"DB Save Error: ${e.getMessage}", e))
-      _           <- updateLocalCache(newCode)
-    } yield newCode
+      _ <- updateLocalCache(newCode)
+      _ <- ZIO.logInfo(s"Bonus API Login successful. New SessionCode: ${newCode.value}")
+    } yield newCode)
+      .tapError { error =>
+        ZIO.logError(s"Bonus API Login FAILED. Reason: ${error.getMessage}")
+      }
 
   private def updateLocalCache(code: BonusApiSessionCode): IO[Nothing, BonusApiSessionCode] =
     localSessionCache.set(Some(code)).as(code)
@@ -93,15 +98,19 @@ case class BonusXmlApiClient(client: Client,
 
   private def sendRequest(xmlBody: String): IO[BonusApiError, String] =
     ZIO.scoped {
-      client.request(
+      for {
+        _ <- ZIO.logDebug(s"Sending Bonus API Request: $xmlBody")
+
+        response <- client.request(
           Request.post(apiUrl, Body.fromString(xmlBody))
             .addHeader(Header.ContentType(MediaType.application.xml))
-        )
-        .mapError(e => BonusApiError.NetworkError(s"Network error: ${e.getMessage}", e))
-        .flatMap { response =>
-          response.body.asString
-            .mapError(e => BonusApiError.NetworkError(s"Read error: ${e.getMessage}", e))
-        }
+        ).mapError(e => BonusApiError.NetworkError(s"Network error: ${e.getMessage}", e))
+
+        bodyStr <- response.body.asString
+          .mapError(e => BonusApiError.NetworkError(s"Read error: ${e.getMessage}", e))
+
+        _ <- ZIO.logDebug(s"Received Bonus API Response: $bodyStr")
+      } yield bodyStr
     }
 }
 

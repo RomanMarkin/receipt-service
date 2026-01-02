@@ -8,7 +8,7 @@ lazy val root = (project in file("."))
   )
 
 libraryDependencies ++= Seq(
-  "dev.zio"       %% "zio"                 % "2.1.23",
+  "dev.zio"       %% "zio"                 % "2.1.24",
   "dev.zio"       %% "zio-http"            % "3.7.4",
   "dev.zio"       %% "zio-json"            % "0.7.45",
   "dev.zio"       %% "zio-logging"         % "2.5.2",
@@ -22,9 +22,10 @@ libraryDependencies ++= Seq(
   "com.github.f4b6a3" % "uuid-creator"     % "6.1.1",
 
   // Test Dependencies
-  "dev.zio"       %% "zio-test"                       % "2.1.23" % Test,
-  "dev.zio"       %% "zio-test-sbt"                   % "2.1.23" % Test,
-  "dev.zio"       %% "zio-test-magnolia"              % "2.1.23" % Test,
+  "dev.zio"       %% "zio-test"                       % "2.1.24" % Test,
+  "dev.zio"       %% "zio-test-sbt"                   % "2.1.24" % Test,
+  "dev.zio"       %% "zio-test-magnolia"              % "2.1.24" % Test,
+  "dev.zio"       %% "zio-http-testkit"               % "3.7.4" % Test,
   "com.dimafeng"  %% "testcontainers-scala-mongodb"   % "0.44.1" % Test,
   "org.testcontainers" % "mongodb"                    % "1.21.4" % Test
 )

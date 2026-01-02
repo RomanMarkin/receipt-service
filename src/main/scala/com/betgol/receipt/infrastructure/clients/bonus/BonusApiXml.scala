@@ -53,8 +53,16 @@ object BonusApiXml {
   def parseLoginResponse(xmlString: String): IO[BonusApiError, BonusApiSessionCode] =
     safeLoadXml(xmlString).flatMap { root =>
       val code = (root \ "head" \ "sessioncode").text.trim
-      if (code.nonEmpty) ZIO.succeed(BonusApiSessionCode(code))
-      else ZIO.fail(BonusApiError.SystemError("Missing or empty <sessioncode> in response"))
+      val status = (root \ "head" \ "status").text.trim
+
+      val isZeroSession = code == "00000000-0000-0000-0000-000000000000"
+      
+      if (code.nonEmpty && !isZeroSession) {
+        ZIO.succeed(BonusApiSessionCode(code))
+      } else {
+        val msg = s"Login failed. Status: $status. Invalid SessionCode: $code"
+        ZIO.fail(BonusApiError.SessionError(msg))
+      }
     }
 
   def parseBonusResponse(xmlString: String, playerId: PlayerId): IO[BonusApiError, BonusAssignmentResult] =
@@ -91,5 +99,6 @@ object BonusApiXml {
   private def safeLoadXml(xmlString: String): IO[BonusApiError, Node] = {
     ZIO.attempt(XML.loadString(xmlString))
       .mapError(e => BonusApiError.SystemError(s"Failed to parse XML response: ${e.getMessage}", e))
+      .tapError(err => ZIO.logError(s"XML Parsing Failed. Error: ${err.msg} | Payload: $xmlString"))
   }
 }
