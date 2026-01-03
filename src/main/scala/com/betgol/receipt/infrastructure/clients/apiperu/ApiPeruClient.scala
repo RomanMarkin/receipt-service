@@ -25,7 +25,7 @@ case class ApiPeruClient(client: Client, config: ApiPeruConfig, apiUrl: URL) ext
         .addHeader(Header.Authorization.Bearer(config.token))
         .addHeader(Header.ContentType(MediaType.application.json))
 
-      responseType <- ZIO.scoped {
+      responseWithStatus <- ZIO.scoped {
         client.request(httpRequest)
           .mapError(e => VerificationApiError.NetworkError(s"[$providerName] Network failure", e))
           .flatMap { response =>
@@ -33,10 +33,10 @@ case class ApiPeruClient(client: Client, config: ApiPeruConfig, apiUrl: URL) ext
               .mapError(e => VerificationApiError.NetworkError(s"[$providerName] Failed to read body", e))
           }
       }.timeoutFail(VerificationApiError.NetworkError(s"[$providerName] Request timed out after ${config.timeoutSeconds.seconds}", null))(config.timeoutSeconds.seconds)
-      (statusCode, responseBody) = responseType
+      (statusCode, responseBody) = responseWithStatus
 
       _ <- validateHttpStatus(statusCode, responseBody)
-        .tapError(e => ZIO.logError(s"[$providerName] HTTP Failure. Payload sent: $jsonPayload. Error: $e"))
+        .tapError(e => ZIO.logError(s"[$providerName] HTTP Failure ($statusCode). Response: '$responseBody'. Payload sent: $jsonPayload. Error: $e"))
 
       apiResponse <- ZIO.fromEither(responseBody.fromJson[ApiPeruResponse])
         .mapError(e => VerificationApiError.DeserializationError(
