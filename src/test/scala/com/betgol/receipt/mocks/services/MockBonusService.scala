@@ -10,7 +10,7 @@ import zio.ZLayer
 
 object MockBonusService {
   private val mockConfig = BonusServiceConfig(
-    maxRetries = 5,
+    maxRetries = 3,
     bonusClient = BonusClientConfig(
       url = "https://not-used-mock-url",
       appCode = "not-used-mock-app-code",
@@ -20,6 +20,7 @@ object MockBonusService {
   )
 
   val layer: ZLayer[IdGenerator & BonusEvaluator & BonusAssignmentRepository & BonusApiClient, Nothing, BonusService] =
+    RetryPolicyMock.layer >+>
     ZLayer.succeed(mockConfig) >+>
     BonusServiceLive.layer
 

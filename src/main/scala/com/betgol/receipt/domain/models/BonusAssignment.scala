@@ -10,6 +10,7 @@ case class BonusAssignment(id: BonusAssignmentId,
                            playerId: PlayerId,
                            bonusCode: BonusCode,
                            status: BonusAssignmentStatus,
+                           nextRetryAt: Option[Instant],
                            attempts: List[BonusAssignmentAttempt],
                            createdAt: Instant,
                            updatedAt: Instant)
@@ -22,6 +23,7 @@ object BonusAssignment {
       playerId = playerId,
       bonusCode = code,
       status = BonusAssignmentStatus.Pending,
+      nextRetryAt = None,
       attempts = List.empty,
       createdAt = now,
       updatedAt = now)

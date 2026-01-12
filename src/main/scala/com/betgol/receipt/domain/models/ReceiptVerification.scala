@@ -10,6 +10,7 @@ case class ReceiptVerification(id: VerificationId,
                                playerId: PlayerId,
                                status: ReceiptVerificationStatus,
                                country: CountryCode,
+                               nextRetryAt: Option[Instant],
                                attempts: List[ReceiptVerificationAttempt],
                                createdAt: Instant,
                                updatedAt: Instant)
@@ -25,6 +26,7 @@ object ReceiptVerification {
       playerId = playerId,
       status = ReceiptVerificationStatus.Pending,
       country = country,
+      nextRetryAt = None,
       attempts = List.empty,
       createdAt = now,
       updatedAt = now)

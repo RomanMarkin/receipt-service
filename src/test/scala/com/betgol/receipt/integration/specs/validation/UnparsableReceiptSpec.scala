@@ -67,8 +67,7 @@ object UnparsableReceiptSpec extends TestHelpers {
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("rawInput")).contains(invalidReceiptData),
-          metadataOpt.flatMap(_.getInstantOpt("submittedAt").map(_.isBefore(before))).contains(false),
-          metadataOpt.flatMap(_.getInstantOpt("submittedAt").map(_.isAfter(after))).contains(false),
+          metadataOpt.flatMap(_.getInstantOpt("submittedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
 
           submissionDoc.getDocOpt("fiscalDocument").isEmpty,
           submissionDoc.getDocOpt("verification").isEmpty,

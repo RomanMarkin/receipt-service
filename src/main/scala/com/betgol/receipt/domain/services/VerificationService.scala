@@ -11,35 +11,38 @@ import zio.*
 
 
 trait VerificationService {
-  def verify(submissionId: SubmissionId,
-             playerId: PlayerId,
-             country: CountryCode,
-             receipt: FiscalDocument): IO[ReceiptSubmissionError, VerificationOutcome]
+  /** Starts the verification lifecycle. Creates the ReceiptVerification entity and performs the first attempt. */
+  def initiate(submissionId: SubmissionId,
+               playerId: PlayerId,
+               country: CountryCode,
+               receipt: FiscalDocument): IO[ReceiptSubmissionError, VerificationOutcome]
 
-  def executeVerificationAttempt(verificationId: VerificationId,
-                                 submissionId: SubmissionId,
-                                 country: CountryCode,
-                                 fiscalDocument: FiscalDocument,
-                                 currentAttempt: Int): IO[ReceiptSubmissionError, VerificationOutcome]
+  /** Execute single verification attempt. Can be called by 'initiate' (on first attempt) or the Retry Job (attempts > 1). */
+  def executeAttempt(verificationId: VerificationId,
+                     submissionId: SubmissionId,
+                     country: CountryCode,
+                     fiscalDocument: FiscalDocument,
+                     currentAttempt: Int): IO[ReceiptSubmissionError, VerificationOutcome]
 }
 
 case class VerificationServiceLive(config: VerificationServiceConfig,
                                    idGenerator: IdGenerator,
+                                   retryPolicy: RetryPolicy,
                                    repo: ReceiptVerificationRepository,
                                    clientProvider: VerificationClientProvider) extends VerificationService {
 
-  override def verify(submissionId: SubmissionId, playerId: PlayerId, country: CountryCode, receipt: FiscalDocument): IO[ReceiptSubmissionError, VerificationOutcome] =
+  override def initiate(submissionId: SubmissionId, playerId: PlayerId, country: CountryCode, receipt: FiscalDocument): IO[ReceiptSubmissionError, VerificationOutcome] =
     for {
       id <- prepareReceiptVerification(submissionId, playerId, country, receipt)
-      outcome <- executeVerificationAttempt(id, submissionId, country, receipt, currentAttempt = 1)
+      outcome <- executeAttempt(id, submissionId, country, receipt, currentAttempt = 1)
     } yield outcome
 
 
-  override def executeVerificationAttempt(verificationId: VerificationId,
-                                          submissionId: SubmissionId,
-                                          country: CountryCode,
-                                          fiscalDocument: FiscalDocument,
-                                          currentAttempt: Int): IO[ReceiptSubmissionError, VerificationOutcome] =
+  override def executeAttempt(verificationId: VerificationId,
+                              submissionId: SubmissionId,
+                              country: CountryCode,
+                              fiscalDocument: FiscalDocument,
+                              currentAttempt: Int): IO[ReceiptSubmissionError, VerificationOutcome] =
     for {
       clients <- clientProvider.getClientsFor(country)
 
@@ -67,8 +70,10 @@ case class VerificationServiceLive(config: VerificationServiceConfig,
         attemptedAt = now,
         provider = res.provider,
         description = res.description)
-
-      _ <- repo.addAttempt(verificationId, attempt, verificationStatus)
+      
+      nextRetryAt <- retryPolicy.nextRetryTimestamp(verificationStatus, ReceiptVerificationStatus.RetryScheduled, currentAttempt)
+        
+      _ <- repo.addAttempt(verificationId, attempt, verificationStatus, nextRetryAt)
         .mapError(e => ReceiptSubmissionError.SystemError(s"Failed to save verification attempt: ${e.getMessage}"))
 
     } yield VerificationOutcome(
@@ -90,7 +95,7 @@ case class VerificationServiceLive(config: VerificationServiceConfig,
 
 object VerificationServiceLive {
 
-  val layer: ZLayer[VerificationServiceConfig & IdGenerator & ReceiptVerificationRepository & VerificationClientProvider, Nothing, VerificationService] =
+  val layer: ZLayer[VerificationServiceConfig & IdGenerator & RetryPolicy & ReceiptVerificationRepository & VerificationClientProvider, Nothing, VerificationService] =
     ZLayer.fromFunction(VerificationServiceLive.apply _)
 
   private case class ClientRaceResult(provider: Option[String],

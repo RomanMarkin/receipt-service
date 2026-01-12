@@ -1,40 +1,45 @@
 package com.betgol.receipt.integration.specs
 
-import com.betgol.receipt.integration.specs.bonus.{BonusAssignmentRejectionSpec, BonusNetworkFailureSpec, BonusSuccessSpec, BonusSystemErrorSpec, BonusUnavailableSpec}
+import com.betgol.receipt.integration.specs.bonus.{BonusAssignmentRejectionSpec, BonusNetworkFailureSpec, BonusSuccessSpec, BonusSystemErrorSpec, BonusUnavailableSpec, BonusExhaustedSpec}
 import com.betgol.receipt.integration.specs.validation.{DuplicateReceiptSpec, ReceiptFormatValidationSpec, RequestDecodingSpec, UnparsableReceiptSpec}
-import com.betgol.receipt.integration.specs.verification.{ReceiptAnnulledSpec, ReceiptNotFoundSpec, VerificationClientErrorSpec, VerificationDeserializationErrorSpec, VerificationNetworkFailureSpec, VerificationSerializationErrorSpec, VerificationSystemErrorSpec}
-import com.betgol.receipt.integration.{BasicIntegrationSpec, SharedTestLayer}
+import com.betgol.receipt.integration.specs.verification.{ReceiptAnnulledSpec, ReceiptNotFoundSpec, VerificationClientErrorSpec, VerificationDeserializationErrorSpec, VerificationNetworkFailureSpec, VerificationSerializationErrorSpec, VerificationServerErrorSpec, VerificationExhaustedSpec}
+import com.betgol.receipt.integration.{BasicIntegrationSpec, SharedTestLayer, DbCleaner}
 import zio.Scope
 import zio.test.*
+import zio.{Scope, ZLayer}
 
 
 object MainIntegrationSpec extends BasicIntegrationSpec {
 
   private val layer = Scope.default >+> SharedTestLayer.infraLayer
 
-  override def spec = suite("All Integration Tests")(
+  private val cleanDb = TestAspect.before(DbCleaner.clean.orDie)
 
+  override def spec = suite("All Integration Tests")(
+    
     // Parsing and validation
-    RequestDecodingSpec.suiteSpec,
-    ReceiptFormatValidationSpec.suiteSpec,
-    UnparsableReceiptSpec.suiteSpec,
-    DuplicateReceiptSpec.suiteSpec,
+    RequestDecodingSpec.suiteSpec @@ cleanDb,
+    ReceiptFormatValidationSpec.suiteSpec @@ cleanDb,
+    UnparsableReceiptSpec.suiteSpec @@ cleanDb,
+    DuplicateReceiptSpec.suiteSpec @@ cleanDb,
 
     // Receipt verification
-    ReceiptNotFoundSpec.suiteSpec,
-    ReceiptAnnulledSpec.suiteSpec,
-    VerificationNetworkFailureSpec.suiteSpec,
-    VerificationSystemErrorSpec.suiteSpec,
-    VerificationClientErrorSpec.suiteSpec,
-    VerificationSerializationErrorSpec.suiteSpec,
-    VerificationDeserializationErrorSpec.suiteSpec,
+    ReceiptNotFoundSpec.suiteSpec @@ cleanDb,
+    ReceiptAnnulledSpec.suiteSpec @@ cleanDb,
+    VerificationNetworkFailureSpec.suiteSpec @@ cleanDb,
+    VerificationServerErrorSpec.suiteSpec @@ cleanDb,
+    VerificationClientErrorSpec.suiteSpec @@ cleanDb,
+    VerificationSerializationErrorSpec.suiteSpec @@ cleanDb,
+    VerificationDeserializationErrorSpec.suiteSpec @@ cleanDb,
+    VerificationExhaustedSpec.suiteSpec @@ cleanDb,
 
     // Bonus assignment
-    BonusSuccessSpec.suiteSpec,
-    BonusUnavailableSpec.suiteSpec,
-    BonusAssignmentRejectionSpec.suiteSpec,
-    BonusNetworkFailureSpec.suiteSpec,
-    BonusSystemErrorSpec.suiteSpec
+    BonusSuccessSpec.suiteSpec @@ cleanDb,
+    BonusUnavailableSpec.suiteSpec @@ cleanDb,
+    BonusAssignmentRejectionSpec.suiteSpec @@ cleanDb,
+    BonusNetworkFailureSpec.suiteSpec @@ cleanDb,
+    BonusSystemErrorSpec.suiteSpec @@ cleanDb,
+    BonusExhaustedSpec.suiteSpec @@ cleanDb
 
   ).provideLayerShared(layer)
     @@ TestAspect.withLiveClock

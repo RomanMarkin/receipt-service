@@ -8,6 +8,7 @@ import zio.IO
 
 trait ReceiptSubmissionRepository {
   def add(rs: ReceiptSubmission): IO[RepositoryError, SubmissionId]
+  def getById(id: SubmissionId): IO[RepositoryError, ReceiptSubmission]
   def updateVerificationOutcome(submissionId: SubmissionId, status: SubmissionStatus, verification: VerificationOutcome): IO[RepositoryError, Unit]
   def updateBonusOutcome(submissionId: SubmissionId, status: SubmissionStatus, bonus: BonusOutcome): IO[RepositoryError, Unit]
 }

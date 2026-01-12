@@ -4,8 +4,9 @@ import com.betgol.receipt.domain.*
 import com.betgol.receipt.domain.Ids.*
 import com.betgol.receipt.domain.models.{BonusOutcome, ReceiptSubmission, SubmissionStatus, VerificationOutcome}
 import com.betgol.receipt.domain.repos.ReceiptSubmissionRepository
-import com.betgol.receipt.infrastructure.repos.mongo.mappers.ReceiptSubmissionMappers.toBson
+import com.betgol.receipt.infrastructure.repos.mongo.mappers.ReceiptSubmissionMappers.{toBson, toReceiptSubmission}
 import org.mongodb.scala.*
+import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex}
@@ -16,22 +17,29 @@ import zio.*
 
 case class MongoReceiptSubmissionRepository(db: MongoDatabase) extends ReceiptSubmissionRepository {
   import MongoReceiptSubmissionRepository.CollectionName
-  private val receiptSubmissions = db.getCollection(CollectionName)
+  private val receiptSubmissions = db.getCollection[BsonDocument](CollectionName)
 
   def ensureIndexes: Task[Unit] = {
-    val key = compoundIndex(
+    val fiscalDocumentKey = compoundIndex(
       ascending("fiscalDocument.country"),
       ascending("fiscalDocument.issuerTaxId"),
       ascending("fiscalDocument.type"),
       ascending("fiscalDocument.series"),
       ascending("fiscalDocument.number")
     )
-    val options = IndexOptions()
+    val fiscalDocumentOptions = IndexOptions()
       .unique(true)
       .name("unique_receipt_idx")
       .partialFilterExpression(Filters.exists("fiscalDocument"))
+
+    val playerHistoryKey = compoundIndex(
+      ascending("metadata.playerId"),
+      ascending("metadata.submittedAt")
+    )
+    val playerHistoryOptions = IndexOptions().name("player_history_idx")
     for {
-      _ <- ZIO.fromFuture(_ => receiptSubmissions.createIndex(key, options).toFuture())
+      _ <- ZIO.fromFuture(_ => receiptSubmissions.createIndex(fiscalDocumentKey, fiscalDocumentOptions).toFuture()) <&>
+           ZIO.fromFuture(_ => receiptSubmissions.createIndex(playerHistoryKey, playerHistoryOptions).toFuture())
       _ <- ZIO.logInfo(s"Ensured database indexes for collection [$CollectionName]")
     } yield ()
   }
@@ -50,6 +58,22 @@ case class MongoReceiptSubmissionRepository(db: MongoDatabase) extends ReceiptSu
           RepositoryError.InsertError(s"Failed to insert ReceiptSubmission ${rs.id.value}. Cause: ${t.getMessage}", t)
       }
   }
+
+  override def getById(id: SubmissionId): IO[RepositoryError, ReceiptSubmission] =
+    ZIO.fromFuture(_ =>
+        receiptSubmissions
+          .find(equal("_id", id.value))
+          .first()
+          .toFutureOption()
+      )
+      .mapError(t => RepositoryError.FindError(s"Database error fetching ReceiptSubmission ${id.value}: ${t.getMessage}", t))
+      .flatMap {
+        case Some(doc) =>
+          ZIO.fromEither(doc.toReceiptSubmission)
+            .mapError(e => RepositoryError.DataCorrupted(s"Failed to parse ReceiptSubmission stored in DB ${id.value}: $e"))
+        case None =>
+          ZIO.fail(RepositoryError.NotFound(s"ReceiptSubmission not found for id: ${id.value}"))
+      }
 
   override def updateVerificationOutcome(submissionId: SubmissionId, status: SubmissionStatus, verification: VerificationOutcome): IO[RepositoryError, Unit] = {
     updateSubmissionState(

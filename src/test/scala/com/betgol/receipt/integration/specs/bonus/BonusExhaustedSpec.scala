@@ -4,8 +4,9 @@ import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.api.dto.{ReceiptRequest, ReceiptSubmissionResponse}
 import com.betgol.receipt.domain.models.*
 import com.betgol.receipt.infrastructure.repos.mongo.mappers.MongoPrimitives.*
-import com.betgol.receipt.infrastructure.repos.mongo.{MongoBonusAssignmentRepository, MongoReceiptSubmissionRepository, MongoReceiptVerificationRepository}
+import com.betgol.receipt.infrastructure.repos.mongo.{MongoBonusAssignmentJobStatsRepository, MongoBonusAssignmentRepository, MongoReceiptSubmissionRepository, MongoReceiptVerificationRepository}
 import com.betgol.receipt.integration.{SharedTestLayer, TestHelpers, TestSuiteLayer}
+import com.betgol.receipt.jobs.BonusAssignmentRetryJob
 import com.betgol.receipt.mocks.services.{MockBonusService, MockVerificationService}
 import org.mongodb.scala.*
 import org.mongodb.scala.bson.BsonDocument
@@ -20,15 +21,15 @@ import java.time.temporal.ChronoUnit
 import scala.jdk.CollectionConverters.*
 
 
-object BonusSuccessSpec extends TestHelpers {
+object BonusExhaustedSpec extends TestHelpers {
 
   private val layer = TestSuiteLayer.make(
     MockVerificationService.validDocPath,
-    MockBonusService.bonusAssignedPath
-  )
+    MockBonusService.bonusNetworkErrorPath
+  ) >+> MongoBonusAssignmentJobStatsRepository.layer
 
-  val suiteSpec = suite("Bonus Assignment: Successful Bonus Assignment")(
-    test("Completes full workflow: Verifies receipt, assigns bonus, and persists consistent state across all collections") {
+  val suiteSpec = suite ("Bonus Assignment: Assignment attempts exhausted")(
+    test("Bonus assignment eventually failed because of exhausting after maximum unsuccessful attempts being made"){
       check(validReceiptDataGen) { case (expectedIssuerTaxId, expectedDocType, expectedDocSeries, expectedDocNumber, expectedTotal, expectedDateObj, receiptData) =>
         val playerId = "player-persistence-test"
         val country = "PE"
@@ -37,6 +38,13 @@ object BonusSuccessSpec extends TestHelpers {
         for {
           before <- Clock.instant.map(_.truncatedTo(ChronoUnit.MILLIS))
           response <- ReceiptRoutes.routes.runZIO(req)
+
+          _ <- Clock.sleep(100.millis)
+          statsOnRetry2 <- BonusAssignmentRetryJob.run
+
+          _ <- Clock.sleep(100.millis)
+          statsOnRetry3 <- BonusAssignmentRetryJob.run
+
           after <- Clock.instant.map(_.truncatedTo(ChronoUnit.MILLIS))
           body <- response.body.asString
           apiResponse <- ZIO.fromEither(body.fromJson[ReceiptSubmissionResponse]).orElseFail(s"Failed to parse API response: $body")
@@ -103,14 +111,13 @@ object BonusSuccessSpec extends TestHelpers {
           // API Response assertions
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
-          apiResponse.status == SubmissionStatus.BonusAssigned.toString,
+          apiResponse.status == SubmissionStatus.BonusAssignmentPending.toString,
           apiResponse.message.contains("Bonus Code: TEST_BONUS"),
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
-          submissionDoc.getStringOpt("status").contains(apiResponse.status),
-          submissionDoc.getStringOpt("status").contains(SubmissionStatus.BonusAssigned.toString),
-          submissionDoc.getStringOpt("statusDescription").contains("Mock Bonus Assigned"),
+          submissionDoc.getStringOpt("status").contains(SubmissionStatus.BonusAssignmentFailed.toString),
+          submissionDoc.getStringOpt("statusDescription").contains("Mock Network Failure"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),
@@ -133,11 +140,11 @@ object BonusSuccessSpec extends TestHelpers {
           verificationOpt.flatMap(_.getStringOpt("externalId")).contains("mocked-external-id"),
 
           bonusOpt.isDefined,
-          bonusOpt.flatMap(_.getStringOpt("status")).contains(BonusAssignmentStatus.Assigned.toString),
-          bonusOpt.flatMap(_.getStringOpt("statusDescription")).contains("Mock Bonus Assigned"),
+          bonusOpt.flatMap(_.getStringOpt("status")).contains(BonusAssignmentStatus.Exhausted.toString),
+          bonusOpt.flatMap(_.getStringOpt("statusDescription")).contains("Mock Network Failure"),
           bonusOpt.flatMap(_.getInstantOpt("updatedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           bonusOpt.flatMap(_.getStringOpt("code")).contains("TEST_BONUS"),
-          bonusOpt.flatMap(_.getStringOpt("externalId")).contains("mock-external-id"),
+          bonusOpt.flatMap(_.getStringOpt("externalId")).isEmpty,
 
           // Receipt Verification assertions
           verificationDoc.getStringOpt("submissionId") == submissionIdOpt,
@@ -154,19 +161,38 @@ object BonusSuccessSpec extends TestHelpers {
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("provider")).contains("MockProvider-Fast"),
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("description")).contains("Mock Valid"),
 
+          // Bonus Assignment Job run #1 assertions
+          statsOnRetry2.processed == 1,
+          statsOnRetry2.succeeded == 0,
+          statsOnRetry2.failed == 0,
+          statsOnRetry2.rejected == 0,
+          statsOnRetry2.rescheduled == 1,
+
+          // Bonus Assignment Job run #2 assertions
+          statsOnRetry3.processed == 1,
+          statsOnRetry3.succeeded == 0,
+          statsOnRetry3.failed == 1,
+          statsOnRetry3.rejected == 0,
+          statsOnRetry3.rescheduled == 0,
+
           // Bonus Assignment assertions
           bonusAssignmentDoc.getStringOpt("submissionId") == submissionIdOpt,
           bonusAssignmentDoc.getStringOpt("playerId").contains(playerId),
           bonusAssignmentDoc.getStringOpt("bonusCode").contains("TEST_BONUS"),
-          bonusAssignmentDoc.getStringOpt("status").contains(BonusAssignmentStatus.Assigned.toString),
+          bonusAssignmentDoc.getStringOpt("status").contains(BonusAssignmentStatus.Exhausted.toString),
           bonusAssignmentDoc.getInstantOpt("nextRetryAt").isEmpty,
           bonusAssignmentDoc.getInstantOpt("updatedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
           bonusAssignmentDoc.getInstantOpt("createdAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          bonusAssignmentAttempts.size == 1,
-          firstBonusAssignmentAttemptOpt.flatMap(_.getStringOpt("status")).contains(BonusAssignmentAttemptStatus.Success.toString),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getInstantOpt("attemptedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getStringOpt("description")).contains("Mock Bonus Assigned")
+          bonusAssignmentAttempts.size == 3,
+
+          (0 to 2).forall { i =>
+            bonusAssignmentAttempts.lift(i).exists { attempt =>
+              attempt.getIntOpt("attemptNumber").contains(i + 1) &&
+                attempt.getStringOpt("status").contains(BonusAssignmentAttemptStatus.SystemError.toString) &&
+                attempt.getInstantOpt("attemptedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)) &&
+                attempt.getStringOpt("description").contains("Mock Network Failure")
+            }
+          }
         )
       }
     }

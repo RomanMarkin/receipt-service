@@ -104,8 +104,7 @@ object VerificationNetworkFailureSpec extends TestHelpers {
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),
-          metadataOpt.flatMap(_.getInstantOpt("submittedAt").map(_.isBefore(before))).contains(false),
-          metadataOpt.flatMap(_.getInstantOpt("submittedAt").map(_.isAfter(after))).contains(false),
+          metadataOpt.flatMap(_.getInstantOpt("submittedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           metadataOpt.flatMap(_.getStringOpt("rawInput")).contains(receiptData),
 
           fiscalDocOpt.flatMap(_.getStringOpt("issuerTaxId")).contains(expectedIssuerTaxId),
@@ -118,8 +117,7 @@ object VerificationNetworkFailureSpec extends TestHelpers {
           verificationOpt.isDefined,
           verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.RetryScheduled.toString),
           verificationOpt.flatMap(_.getStringOpt("statusDescription")).contains("All providers failed. Last error: Mock Network Error"),
-          verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isBefore(before))).contains(false),
-          verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isAfter(after))).contains(false),
+          verificationOpt.flatMap(_.getInstantOpt("updatedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           verificationOpt.flatMap(_.getStringOpt("apiProvider")).isEmpty,
           verificationOpt.flatMap(_.getStringOpt("externalId")).isEmpty,
 
@@ -130,11 +128,15 @@ object VerificationNetworkFailureSpec extends TestHelpers {
           verificationDoc.getStringOpt("playerId").contains(playerId),
           verificationDoc.getStringOpt("country").contains("PE"),
           verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.RetryScheduled.toString),
+          verificationDoc.getInstantOpt("nextRetryAt").exists { actualRetryTime =>
+            !actualRetryTime.isBefore(before) && !actualRetryTime.isAfter(after.plusSeconds(2))
+          },
+          verificationDoc.getInstantOpt("updatedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
+          verificationDoc.getInstantOpt("createdAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
           verificationAttempts.size == 1,
           firstVerificationAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationAttemptStatus.SystemError.toString),
-          firstVerificationAttemptOpt.flatMap(_.getInstantOpt("attemptedAt").map(_.isBefore(before))).contains(false),
-          firstVerificationAttemptOpt.flatMap(_.getInstantOpt("attemptedAt").map(_.isAfter(after))).contains(false),
+          firstVerificationAttemptOpt.flatMap(_.getInstantOpt("attemptedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("provider")).isEmpty,
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("description")).contains("All providers failed. Last error: Mock Network Error"),
 

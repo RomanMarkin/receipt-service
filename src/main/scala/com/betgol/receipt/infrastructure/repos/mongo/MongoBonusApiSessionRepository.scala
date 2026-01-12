@@ -18,17 +18,19 @@ class MongoBonusApiSessionRepository(db: MongoDatabase) extends BonusApiSessionR
   private val sessions = db.getCollection[BsonDocument](CollectionName)
 
   override def getSession: IO[RepositoryError, Option[BonusApiSession]] =
-    ZIO.fromFuture { _ =>
-      sessions.find(equal("_id", SingletonId)).headOption()
-    }.flatMap {
-      case Some(doc) =>
-        ZIO.fromEither(doc.toBonusApiSession)
-          .mapError(err => new RuntimeException(s"Data corruption in session doc: $err"))
-          .asSome
-      case None =>
-        ZIO.none
-    }
-    .mapError(e => FindError("Failed to retrieve bonus API session from database", e))
+    ZIO.fromFuture(_ =>
+        sessions.find(equal("_id", SingletonId)).headOption()
+      )
+      .mapError(e => RepositoryError.FindError("Failed to retrieve bonus API session from database", e))
+      .flatMap {
+        case Some(doc) =>
+          ZIO.fromEither(doc.toBonusApiSession)
+            .mapError(e => RepositoryError.DataCorrupted(s"Failed to parse BonusApiSession saved in DB: $e"))
+            .asSome
+        case None =>
+          ZIO.none
+      }
+
 
   override def saveSession(session: BonusApiSession): IO[RepositoryError, Unit] = {
     val docToSave = session.toBson.append("_id", SingletonId.toBsonString)

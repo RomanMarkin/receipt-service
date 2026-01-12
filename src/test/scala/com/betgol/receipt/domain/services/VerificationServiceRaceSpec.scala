@@ -1,4 +1,4 @@
-package com.betgol.receipt.services
+package com.betgol.receipt.domain.services
 
 import com.betgol.receipt.config.VerificationServiceConfig
 import com.betgol.receipt.domain.Ids.*
@@ -8,7 +8,8 @@ import com.betgol.receipt.domain.models.*
 import com.betgol.receipt.domain.repos.ReceiptVerificationRepository
 import com.betgol.receipt.domain.services.{VerificationService, VerificationServiceLive}
 import com.betgol.receipt.infrastructure.services.UuidV7IdGenerator
-import com.betgol.receipt.services.VerificationServiceRaceSpec.test
+import com.betgol.receipt.mocks.services.RetryPolicyMock
+import VerificationServiceRaceSpec.test
 import zio.*
 import zio.test.*
 
@@ -33,7 +34,8 @@ object VerificationServiceRaceSpec extends ZIOSpecDefault {
 
   val mockVerificationRepository = new ReceiptVerificationRepository() {
     override def add(vr: ReceiptVerification): IO[RepositoryError, VerificationId] = ZIO.succeed(VerificationId("1"))
-    override def addAttempt(id: VerificationId, attempt: ReceiptVerificationAttempt, verificationStatus: ReceiptVerificationStatus): IO[RepositoryError, Unit] = ZIO.unit
+    override def addAttempt(id: VerificationId, attempt: ReceiptVerificationAttempt, verificationStatus: ReceiptVerificationStatus, nextRetryAt: Option[Instant]): IO[RepositoryError, Unit] = ZIO.unit
+    override def findReadyForRetry(now: Instant, limit: Int): IO[RepositoryError, List[ReceiptVerification]] = ZIO.succeed(List.empty)
   }
 
   val dummyReceiptZio = Clock.currentDateTime.map(now => FiscalDocument("123", "01", "F001", "1", 10.0, now.toLocalDate))
@@ -44,6 +46,7 @@ object VerificationServiceRaceSpec extends ZIOSpecDefault {
     val dependencies =
       ZLayer.succeed(mockConfig) ++
       UuidV7IdGenerator.layer ++
+      RetryPolicyMock.layer ++
       ZLayer.succeed(mockVerificationRepository) ++
       ZLayer.succeed(MockVerificationClientProvider(clients))
     dependencies >>> ZLayer.fromFunction(VerificationServiceLive.apply _)
@@ -65,7 +68,7 @@ object VerificationServiceRaceSpec extends ZIOSpecDefault {
 
       (for {
         dummyReceipt <- dummyReceiptZio
-        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeVerificationAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
+        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
         _ <- TestClock.adjust(2.second) // advance time between the completion of Fast and Slow
         verificationOutcome <- fiber.join
       } yield assertTrue(
@@ -84,7 +87,7 @@ object VerificationServiceRaceSpec extends ZIOSpecDefault {
 
       (for {
         dummyReceipt <- dummyReceiptZio
-        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeVerificationAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
+        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
         _ <- TestClock.adjust(2.second) // advance time after the completion of SlowSuccess
         verificationOutcome <- fiber.join
       } yield assertTrue(
@@ -104,7 +107,7 @@ object VerificationServiceRaceSpec extends ZIOSpecDefault {
 
       (for {
         dummyReceipt <- dummyReceiptZio
-        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeVerificationAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
+        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
         _ <- TestClock.adjust(5.second)
         result <- fiber.join
       } yield assertTrue(
@@ -122,7 +125,7 @@ object VerificationServiceRaceSpec extends ZIOSpecDefault {
 
       (for {
         dummyReceipt <- dummyReceiptZio
-        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeVerificationAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
+        fiber <- ZIO.serviceWithZIO[VerificationService](_.executeAttempt(verificationId, submissionId, country, dummyReceipt, currentAttempt = 1)).fork
         _ <- TestClock.adjust(1.second) // the FastFail client now is failed
         _ <- TestClock.adjust(4.second) // the SlowFail client now is failed
         verificationOutcome <- fiber.join

@@ -115,8 +115,7 @@ object BonusSystemErrorSpec extends TestHelpers {
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),
           metadataOpt.flatMap(_.getStringOpt("rawInput")).contains(receiptData),
-          metadataOpt.flatMap(_.getInstantOpt("submittedAt").map(_.isBefore(before))).contains(false),
-          metadataOpt.flatMap(_.getInstantOpt("submittedAt").map(_.isAfter(after))).contains(false),
+          metadataOpt.flatMap(_.getInstantOpt("submittedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
 
           fiscalDocOpt.isDefined,
           fiscalDocOpt.flatMap(_.getStringOpt("issuerTaxId")).contains(expectedIssuerTaxId),
@@ -129,16 +128,14 @@ object BonusSystemErrorSpec extends TestHelpers {
           verificationOpt.isDefined,
           verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.Confirmed.toString),
           verificationOpt.flatMap(_.getStringOpt("statusDescription")).contains("Mock Valid"),
-          verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isBefore(before))).contains(false),
-          verificationOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isAfter(after))).contains(false),
+          verificationOpt.flatMap(_.getInstantOpt("updatedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           verificationOpt.flatMap(_.getStringOpt("apiProvider")).contains("MockProvider-Fast"),
           verificationOpt.flatMap(_.getStringOpt("externalId")).contains("mocked-external-id"),
 
           bonusOpt.isDefined,
           bonusOpt.flatMap(_.getStringOpt("status")).contains(BonusAssignmentStatus.RetryScheduled.toString),
           bonusOpt.flatMap(_.getStringOpt("statusDescription")).contains("Mock System Failure"),
-          bonusOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isBefore(before))).contains(false),
-          bonusOpt.flatMap(_.getInstantOpt("updatedAt").map(_.isAfter(after))).contains(false),
+          bonusOpt.flatMap(_.getInstantOpt("updatedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           bonusOpt.flatMap(_.getStringOpt("code")).contains("TEST_BONUS"),
           bonusOpt.flatMap(_.getStringOpt("externalId")).isEmpty,
 
@@ -147,11 +144,13 @@ object BonusSystemErrorSpec extends TestHelpers {
           verificationDoc.getStringOpt("playerId").contains(playerId),
           verificationDoc.getStringOpt("country").contains("PE"),
           verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.Confirmed.toString),
+          verificationDoc.getInstantOpt("nextRetryAt").isEmpty,
+          verificationDoc.getInstantOpt("updatedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
+          verificationDoc.getInstantOpt("createdAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
           verificationAttempts.size == 1,
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationAttemptStatus.Valid.toString),
           firstVerificationAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
-          firstVerificationAttemptOpt.flatMap(_.getInstantOpt("attemptedAt").map(_.isBefore(before))).contains(false),
-          firstVerificationAttemptOpt.flatMap(_.getInstantOpt("attemptedAt").map(_.isAfter(after))).contains(false),
+          firstVerificationAttemptOpt.flatMap(_.getInstantOpt("attemptedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("provider")).contains("MockProvider-Fast"),
           firstVerificationAttemptOpt.flatMap(_.getStringOpt("description")).contains("Mock Valid"),
 
@@ -160,11 +159,15 @@ object BonusSystemErrorSpec extends TestHelpers {
           bonusAssignmentDoc.getStringOpt("playerId").contains(playerId),
           bonusAssignmentDoc.getStringOpt("bonusCode").contains("TEST_BONUS"),
           bonusAssignmentDoc.getStringOpt("status").contains(BonusAssignmentStatus.RetryScheduled.toString),
+          bonusAssignmentDoc.getInstantOpt("nextRetryAt").exists { actualRetryTime =>
+            !actualRetryTime.isBefore(before) && !actualRetryTime.isAfter(after.plusSeconds(2))
+          },
+          bonusAssignmentDoc.getInstantOpt("updatedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
+          bonusAssignmentDoc.getInstantOpt("createdAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
           bonusAssignmentAttempts.size == 1,
           firstBonusAssignmentAttemptOpt.flatMap(_.getStringOpt("status")).contains(BonusAssignmentAttemptStatus.SystemError.toString),
           firstBonusAssignmentAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getInstantOpt("attemptedAt").map(_.isBefore(before))).contains(false),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getInstantOpt("attemptedAt").map(_.isAfter(after))).contains(false),
+          firstBonusAssignmentAttemptOpt.flatMap(_.getInstantOpt("attemptedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
           firstBonusAssignmentAttemptOpt.flatMap(_.getStringOpt("description")).contains("Mock System Failure")
         )
       }

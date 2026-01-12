@@ -11,21 +11,21 @@ import zio.*
 
 
 trait BonusService {
-  /** Checks bonus eligibility and starts the assignment process if applicable. */
-  def evaluateAndApply(submissionId: SubmissionId, playerId: PlayerId, fiscalDocument: FiscalDocument): IO[ReceiptSubmissionError, BonusOutcome]
+  /** Starts the bonus assignment lifecycle. Checks bonus eligibility, creates BonusAssignment entity, and performs the first attempt. */
+  def initiate(submissionId: SubmissionId, playerId: PlayerId, fiscalDocument: FiscalDocument): IO[ReceiptSubmissionError, BonusOutcome]
 
-  /** Performs a single API call and records the attempt result.
-   * Can be called by the initial flow or a background retry worker. */
+  /** Execution single assignment attempt. Can be called by 'initiate' (on first attempt) or the Retry Job (attempts > 1). */
   def executeAttempt(assignmentId: BonusAssignmentId, playerId: PlayerId, bonusCode: BonusCode, currentAttempt: Int): IO[ReceiptSubmissionError, BonusOutcome]
 }
 
 case class BonusServiceLive(config: BonusServiceConfig,
                             idGenerator: IdGenerator,
                             bonusEvaluator: BonusEvaluator,
+                            retryPolicy: RetryPolicy,
                             repo: BonusAssignmentRepository,
                             bettingClient: BonusApiClient) extends BonusService {
 
-  override def evaluateAndApply(submissionId: SubmissionId, playerId: PlayerId, fiscalDocument: FiscalDocument): IO[ReceiptSubmissionError, BonusOutcome] =
+  override def initiate(submissionId: SubmissionId, playerId: PlayerId, fiscalDocument: FiscalDocument): IO[ReceiptSubmissionError, BonusOutcome] =
     bonusEvaluator.evaluate(fiscalDocument.totalAmount.toDouble) match {
       case None =>
         for {
@@ -63,7 +63,10 @@ case class BonusServiceLive(config: BonusServiceConfig,
       now <- Clock.instant
       attempt = BonusAssignmentAttempt(attemptStatus, currentAttempt, now, description)
       assignmentStatus = attemptStatus.toBonusAssignmentStatus(currentAttempt, config.maxRetries)
-      _ <- repo.addAttempt(assignmentId, attempt, assignmentStatus)
+
+      nextRetryAt <- retryPolicy.nextRetryTimestamp(assignmentStatus, BonusAssignmentStatus.RetryScheduled, currentAttempt)
+      
+      _ <- repo.addAttempt(assignmentId, attempt, assignmentStatus, nextRetryAt)
         .mapError(dbErr => ReceiptSubmissionError.SystemError(s"Failed to save bonus attempt: ${dbErr.getMessage}"))
 
     } yield BonusOutcome(
@@ -83,7 +86,7 @@ case class BonusServiceLive(config: BonusServiceConfig,
 }
 
 object BonusServiceLive {
-  val layer: ZLayer[BonusServiceConfig & IdGenerator & BonusEvaluator & BonusAssignmentRepository & BonusApiClient, Nothing, BonusService] = {
+  val layer: ZLayer[BonusServiceConfig & IdGenerator & BonusEvaluator & RetryPolicy & BonusAssignmentRepository & BonusApiClient, Nothing, BonusService] = {
     ZLayer.fromFunction(BonusServiceLive.apply _)
   }
 
@@ -95,8 +98,8 @@ object BonusServiceLive {
         case BonusAssignmentAttemptStatus.Rejected =>
           BonusAssignmentStatus.Rejected
         case BonusAssignmentAttemptStatus.SystemError =>
-          if (currentAttempt + 1 >= maxRetries) BonusAssignmentStatus.Exhausted
-          else BonusAssignmentStatus.RetryScheduled
+          if (currentAttempt < maxRetries) BonusAssignmentStatus.RetryScheduled
+          else BonusAssignmentStatus.Exhausted
       }
   }
 }

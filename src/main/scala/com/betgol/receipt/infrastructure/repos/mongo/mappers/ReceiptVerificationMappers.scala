@@ -11,14 +11,14 @@ import scala.util.Try
 
 object ReceiptVerificationMappers {
 
-  extension (attempt: ReceiptVerificationAttempt) {
+  extension (a: ReceiptVerificationAttempt) {
     def toBson: BsonDocument = {
       val doc = new BsonDocument()
-        .append("status", attempt.status.toString.toBsonString)
-        .append("attemptNumber", attempt.attemptNumber.toBsonInt32)
-        .append("attemptedAt", attempt.attemptedAt.toBsonDateTime)
-      attempt.provider.foreach(e => doc.append("provider", e.toBsonString))
-      attempt.description.foreach(e => doc.append("description", e.toBsonString))
+        .append("status", a.status.toString.toBsonString)
+        .append("attemptNumber", a.attemptNumber.toBsonInt32)
+        .append("attemptedAt", a.attemptedAt.toBsonDateTime)
+      a.provider.foreach(e => doc.append("provider", e.toBsonString))
+      a.description.foreach(e => doc.append("description", e.toBsonString))
       doc
     }
   }
@@ -41,7 +41,7 @@ object ReceiptVerificationMappers {
       val attemptsArray = new BsonArray()
       v.attempts.foreach(a => attemptsArray.add(a.toBson))
 
-      new BsonDocument()
+      val doc = new BsonDocument()
         .append("_id",          v.id.value.toBsonString)
         .append("submissionId", v.submissionId.value.toBsonString)
         .append("playerId",     v.playerId.value.toBsonString)
@@ -50,6 +50,8 @@ object ReceiptVerificationMappers {
         .append("attempts",     attemptsArray)
         .append("createdAt",    v.createdAt.toBsonDateTime)
         .append("updatedAt",    v.updatedAt.toBsonDateTime)
+      v.nextRetryAt.foreach(i => doc.append("nextRetryAt", i.toBsonDateTime))
+      doc
     }
   }
 
@@ -78,7 +80,8 @@ object ReceiptVerificationMappers {
 
         createdAt <- d.getInstantOpt("createdAt").toRight("Missing createdAt")
         updatedAt <- d.getInstantOpt("updatedAt").toRight("Missing updatedAt")
-
+        nextRetryAt = d.getInstantOpt("nextRetryAt")
+        
         attemptsArr <- Try(d.getArray("attempts")).toOption
           .toRight("Missing or invalid attempts array")
 
@@ -95,6 +98,7 @@ object ReceiptVerificationMappers {
         playerId = playerId,
         country = country,
         status = status,
+        nextRetryAt = nextRetryAt,
         attempts = attempts,
         createdAt = createdAt,
         updatedAt = updatedAt

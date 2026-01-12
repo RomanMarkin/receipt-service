@@ -1,11 +1,12 @@
-package com.betgol.receipt.integration.specs.bonus
+package com.betgol.receipt.integration.specs.verification
 
 import com.betgol.receipt.api.ReceiptRoutes
 import com.betgol.receipt.api.dto.{ReceiptRequest, ReceiptSubmissionResponse}
 import com.betgol.receipt.domain.models.*
+import com.betgol.receipt.infrastructure.repos.mongo.*
 import com.betgol.receipt.infrastructure.repos.mongo.mappers.MongoPrimitives.*
-import com.betgol.receipt.infrastructure.repos.mongo.{MongoBonusAssignmentRepository, MongoReceiptSubmissionRepository, MongoReceiptVerificationRepository}
 import com.betgol.receipt.integration.{SharedTestLayer, TestHelpers, TestSuiteLayer}
+import com.betgol.receipt.jobs.ReceiptVerificationRetryJob
 import com.betgol.receipt.mocks.services.{MockBonusService, MockVerificationService}
 import org.mongodb.scala.*
 import org.mongodb.scala.bson.BsonDocument
@@ -20,15 +21,16 @@ import java.time.temporal.ChronoUnit
 import scala.jdk.CollectionConverters.*
 
 
-object BonusSuccessSpec extends TestHelpers {
+object VerificationExhaustedSpec extends TestHelpers {
 
   private val layer = TestSuiteLayer.make(
-    MockVerificationService.validDocPath,
-    MockBonusService.bonusAssignedPath
-  )
+    MockVerificationService.networkErrorPath,
+    MockBonusService.bonusAssignedPath,
+  ) >+> MongoReceiptVerificationJobStatsRepository.layer
 
-  val suiteSpec = suite("Bonus Assignment: Successful Bonus Assignment")(
-    test("Completes full workflow: Verifies receipt, assigns bonus, and persists consistent state across all collections") {
+  val suiteSpec = suite("Receipt Verification: Verification attempts exhausted")(
+
+    test("Verification eventually failed because of exhausting after maximum unsuccessful attempts being made") {
       check(validReceiptDataGen) { case (expectedIssuerTaxId, expectedDocType, expectedDocSeries, expectedDocNumber, expectedTotal, expectedDateObj, receiptData) =>
         val playerId = "player-persistence-test"
         val country = "PE"
@@ -37,16 +39,21 @@ object BonusSuccessSpec extends TestHelpers {
         for {
           before <- Clock.instant.map(_.truncatedTo(ChronoUnit.MILLIS))
           response <- ReceiptRoutes.routes.runZIO(req)
+
+          _ <- Clock.sleep(100.millis)
+          statsOnRetry2 <- ReceiptVerificationRetryJob.run
+
+          _ <- Clock.sleep(100.millis)
+          statsOnRetry3 <- ReceiptVerificationRetryJob.run
+
           after <- Clock.instant.map(_.truncatedTo(ChronoUnit.MILLIS))
           body <- response.body.asString
           apiResponse <- ZIO.fromEither(body.fromJson[ReceiptSubmissionResponse]).orElseFail(s"Failed to parse API response: $body")
-          _ <- ZIO.succeed(assertTrue(response.status == Status.Ok))
           db <- ZIO.service[MongoDatabase]
-
-          // Receipt Submission assertions
           submissions = db.getCollection[BsonDocument](MongoReceiptSubmissionRepository.CollectionName)
           retryPolicy = Schedule.recurs(10) && Schedule.spaced(100.millis)
 
+          // Receipt Submission retrieval
           submissionDoc <- ZIO.fromFuture(_ =>
               submissions.find(
                 and(
@@ -59,11 +66,11 @@ object BonusSuccessSpec extends TestHelpers {
             )
             .some
             .retry(retryPolicy)
-            .orElseFail(s"ReceiptSubmission not found for issuer: $expectedIssuerTaxId, number: $expectedDocNumber")
+            .orElseFail("ReceiptSubmission not found")
 
           submissionIdOpt = submissionDoc.getStringOpt("_id")
-          metadataOpt = submissionDoc.getDocOpt("metadata")
           fiscalDocOpt = submissionDoc.getDocOpt("fiscalDocument")
+          metadataOpt = submissionDoc.getDocOpt("metadata")
           verificationOpt = submissionDoc.getDocOpt("verification")
           bonusOpt = submissionDoc.getDocOpt("bonus")
 
@@ -80,44 +87,31 @@ object BonusSuccessSpec extends TestHelpers {
             .filter(_.isArray)
             .map(_.asArray().getValues.asScala.map(_.asDocument()).toList)
             .getOrElse(List.empty)
-
-          firstVerificationAttemptOpt = verificationAttempts.headOption
-
+          
           // Bonus Assignment retrieval
           bonusAssignments = db.getCollection[BsonDocument](MongoBonusAssignmentRepository.CollectionName)
-          bonusAssignmentDoc <- ZIO.fromFuture(_ =>
+          bonusAssignmentDocOpt <- ZIO.fromFuture(_ =>
               bonusAssignments.find(equal("submissionId", submissionIdOpt.getOrElse("unknown"))).headOption()
             )
-            .some
             .retry(retryPolicy)
-            .orElseFail(s"Bonus assignment not found for submissionId: ${submissionIdOpt.getOrElse("unknown")}")
-
-          bonusAssignmentAttempts = Option(bonusAssignmentDoc.get("attempts"))
-            .filter(_.isArray)
-            .map(_.asArray().getValues.asScala.map(_.asDocument()).toList)
-            .getOrElse(List.empty)
-
-          firstBonusAssignmentAttemptOpt = bonusAssignmentAttempts.headOption
 
         } yield assertTrue(
           // API Response assertions
           response.status == Status.Ok,
           apiResponse.receiptSubmissionId.isValidUuid,
-          apiResponse.status == SubmissionStatus.BonusAssigned.toString,
-          apiResponse.message.contains("Bonus Code: TEST_BONUS"),
+          apiResponse.status == SubmissionStatus.VerificationPending.toString,
+          apiResponse.message.isEmpty,
 
           // Receipt Submission assertions
           submissionDoc.getStringOpt("_id").contains(apiResponse.receiptSubmissionId),
-          submissionDoc.getStringOpt("status").contains(apiResponse.status),
-          submissionDoc.getStringOpt("status").contains(SubmissionStatus.BonusAssigned.toString),
-          submissionDoc.getStringOpt("statusDescription").contains("Mock Bonus Assigned"),
+          submissionDoc.getStringOpt("status").contains(SubmissionStatus.VerificationFailed.toString),
+          submissionDoc.getStringOpt("statusDescription").contains("All providers failed. Last error: Mock Network Error"),
 
           metadataOpt.flatMap(_.getStringOpt("playerId")).contains(playerId),
           metadataOpt.flatMap(_.getStringOpt("country")).contains("PE"),
-          metadataOpt.flatMap(_.getStringOpt("rawInput")).contains(receiptData),
           metadataOpt.flatMap(_.getInstantOpt("submittedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
+          metadataOpt.flatMap(_.getStringOpt("rawInput")).contains(receiptData),
 
-          fiscalDocOpt.isDefined,
           fiscalDocOpt.flatMap(_.getStringOpt("issuerTaxId")).contains(expectedIssuerTaxId),
           fiscalDocOpt.flatMap(_.getStringOpt("type")).contains(expectedDocType),
           fiscalDocOpt.flatMap(_.getStringOpt("series")).contains(expectedDocSeries),
@@ -126,50 +120,52 @@ object BonusSuccessSpec extends TestHelpers {
           fiscalDocOpt.flatMap(_.getBigDecimalOpt("totalAmount")).map(_.toString).contains(expectedTotal),
 
           verificationOpt.isDefined,
-          verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.Confirmed.toString),
-          verificationOpt.flatMap(_.getStringOpt("statusDescription")).contains("Mock Valid"),
+          verificationOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationStatus.Exhausted.toString),
+          verificationOpt.flatMap(_.getStringOpt("statusDescription")).contains("All providers failed. Last error: Mock Network Error"),
           verificationOpt.flatMap(_.getInstantOpt("updatedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          verificationOpt.flatMap(_.getStringOpt("apiProvider")).contains("MockProvider-Fast"),
-          verificationOpt.flatMap(_.getStringOpt("externalId")).contains("mocked-external-id"),
+          verificationOpt.flatMap(_.getStringOpt("apiProvider")).isEmpty,
+          verificationOpt.flatMap(_.getStringOpt("externalId")).isEmpty,
 
-          bonusOpt.isDefined,
-          bonusOpt.flatMap(_.getStringOpt("status")).contains(BonusAssignmentStatus.Assigned.toString),
-          bonusOpt.flatMap(_.getStringOpt("statusDescription")).contains("Mock Bonus Assigned"),
-          bonusOpt.flatMap(_.getInstantOpt("updatedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          bonusOpt.flatMap(_.getStringOpt("code")).contains("TEST_BONUS"),
-          bonusOpt.flatMap(_.getStringOpt("externalId")).contains("mock-external-id"),
+          bonusOpt.isEmpty,
+
+          // Receipt Verification Job run #1 assertions
+          statsOnRetry2.processed == 1,
+          statsOnRetry2.succeeded == 0,
+          statsOnRetry2.failed == 0,
+          statsOnRetry2.rejected == 0,
+          statsOnRetry2.rescheduled == 1,
+
+          // Receipt Verification Job run #2 assertions
+          statsOnRetry3.processed == 1,
+          statsOnRetry3.succeeded == 0,
+          statsOnRetry3.failed == 1,
+          statsOnRetry3.rejected == 0,
+          statsOnRetry3.rescheduled == 0,
 
           // Receipt Verification assertions
           verificationDoc.getStringOpt("submissionId") == submissionIdOpt,
           verificationDoc.getStringOpt("playerId").contains(playerId),
           verificationDoc.getStringOpt("country").contains("PE"),
-          verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.Confirmed.toString),
+          verificationDoc.getStringOpt("status").contains(ReceiptVerificationStatus.Exhausted.toString),
           verificationDoc.getInstantOpt("nextRetryAt").isEmpty,
           verificationDoc.getInstantOpt("updatedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
           verificationDoc.getInstantOpt("createdAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          verificationAttempts.size == 1,
-          firstVerificationAttemptOpt.flatMap(_.getStringOpt("status")).contains(ReceiptVerificationAttemptStatus.Valid.toString),
-          firstVerificationAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
-          firstVerificationAttemptOpt.flatMap(_.getInstantOpt("attemptedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          firstVerificationAttemptOpt.flatMap(_.getStringOpt("provider")).contains("MockProvider-Fast"),
-          firstVerificationAttemptOpt.flatMap(_.getStringOpt("description")).contains("Mock Valid"),
+          verificationAttempts.size == 3,
+
+          (0 to 2).forall { i =>
+            verificationAttempts.lift(i).exists { attempt =>
+              attempt.getIntOpt("attemptNumber").contains(i + 1) &&
+                attempt.getStringOpt("status").contains(ReceiptVerificationAttemptStatus.SystemError.toString) &&
+                attempt.getInstantOpt("attemptedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)) &&
+                attempt.getStringOpt("provider").isEmpty &&
+                attempt.getStringOpt("description").contains("All providers failed. Last error: Mock Network Error")
+            }
+          },
 
           // Bonus Assignment assertions
-          bonusAssignmentDoc.getStringOpt("submissionId") == submissionIdOpt,
-          bonusAssignmentDoc.getStringOpt("playerId").contains(playerId),
-          bonusAssignmentDoc.getStringOpt("bonusCode").contains("TEST_BONUS"),
-          bonusAssignmentDoc.getStringOpt("status").contains(BonusAssignmentStatus.Assigned.toString),
-          bonusAssignmentDoc.getInstantOpt("nextRetryAt").isEmpty,
-          bonusAssignmentDoc.getInstantOpt("updatedAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          bonusAssignmentDoc.getInstantOpt("createdAt").exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          bonusAssignmentAttempts.size == 1,
-          firstBonusAssignmentAttemptOpt.flatMap(_.getStringOpt("status")).contains(BonusAssignmentAttemptStatus.Success.toString),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getIntOpt("attemptNumber")).contains(1),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getInstantOpt("attemptedAt")).exists(t => !t.isBefore(before) && !t.isAfter(after)),
-          firstBonusAssignmentAttemptOpt.flatMap(_.getStringOpt("description")).contains("Mock Bonus Assigned")
+          bonusAssignmentDocOpt.isEmpty
         )
       }
     }
-
   ).provideSomeLayer[SharedTestLayer.InfraEnv & Scope](layer)
 }

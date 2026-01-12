@@ -18,4 +18,5 @@ object RepositoryError {
   final case class FindError(msg: String, cause: Throwable = null) extends RepositoryError(msg, cause)
   final case class NotFound(msg: String) extends RepositoryError(msg)
   final case class Duplicate(msg: String, cause: Throwable) extends RepositoryError(msg, cause)
+  final case class DataCorrupted(msg: String) extends RepositoryError(msg)
 }
