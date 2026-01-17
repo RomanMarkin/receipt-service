@@ -1,7 +1,7 @@
 package com.betgol.receipt.integration.specs.validation
 
 import com.betgol.receipt.api.ReceiptRoutes
-import com.betgol.receipt.api.dto.ReceiptRequest
+import com.betgol.receipt.api.dto.{ApiErrorResponse, ReceiptRequest}
 import com.betgol.receipt.integration.{SharedTestLayer, TestHelpers, TestSuiteLayer}
 import com.betgol.receipt.mocks.services.{MockBonusService, MockVerificationService}
 import zio.http.*
@@ -32,21 +32,17 @@ object DuplicateReceiptSpec extends TestHelpers {
           resp1 <- ReceiptRoutes.routes.runZIO(req)
           resp2 <- ReceiptRoutes.routes.runZIO(req) // Duplicate submission
           body2 <- resp2.body.asString
-          apiResponse2  <- ZIO.fromEither(body2.fromJson[ErrorApiResponse])
-            .orElseFail(s"Response was not a valid Error JSON. Body: $body2")
+          apiResponse2  <- ZIO.fromEither(body2.fromJson[ApiErrorResponse])
+            .orElseFail(s"Response was not a valid ApiErrorResponse JSON. Body: $body2")
         } yield assertTrue(
           resp1.status == Status.Ok,
           resp2.status == Status.Conflict,
-          apiResponse2.error.contains("Receipt already exists")
+          apiResponse2.code.contains("DuplicateReceipt"),
+          apiResponse2.message.contains("Receipt already exists")
         )
       }
     }
 
   ).provideSomeLayer[SharedTestLayer.InfraEnv & Scope](layer)
-
-  case class ErrorApiResponse(error: String)
-  object ErrorApiResponse {
-    implicit val decoder: JsonDecoder[ErrorApiResponse] = DeriveJsonDecoder.gen[ErrorApiResponse]
-  }
 
 }

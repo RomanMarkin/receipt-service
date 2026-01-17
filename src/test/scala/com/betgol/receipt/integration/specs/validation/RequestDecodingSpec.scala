@@ -1,10 +1,11 @@
 package com.betgol.receipt.integration.specs.validation
 
 import com.betgol.receipt.api.ReceiptRoutes
+import com.betgol.receipt.api.dto.ApiErrorResponse
 import com.betgol.receipt.integration.{SharedTestLayer, TestHelpers, TestSuiteLayer}
 import com.betgol.receipt.mocks.services.{MockBonusService, MockVerificationService}
 import zio.http.*
-import zio.json.{DecoderOps, DeriveJsonDecoder, JsonDecoder}
+import zio.json.DecoderOps
 import zio.test.*
 import zio.{Scope, ZIO}
 
@@ -22,11 +23,12 @@ object RequestDecodingSpec extends TestHelpers {
       for {
         response <- ReceiptRoutes.routes.runZIO(req)
         body     <- response.body.asString
-        apiResponse  <- ZIO.fromEither(body.fromJson[ErrorApiResponse])
-          .orElseFail(s"Response was not a valid Error JSON. Body: $body")
+        apiResponse  <- ZIO.fromEither(body.fromJson[ApiErrorResponse])
+          .orElseFail(s"Response was not a valid ApiErrorResponse JSON. Body: $body")
       } yield assertTrue(
         response.status == Status.BadRequest,
-        apiResponse.error.contains("Invalid JSON format:")
+        apiResponse.code.contains("InvalidJson"),
+        apiResponse.message.contains("Invalid JSON format:")
       )
     },
 
@@ -36,18 +38,14 @@ object RequestDecodingSpec extends TestHelpers {
       for {
         response <- ReceiptRoutes.routes.runZIO(req)
         body  <- response.body.asString
-        apiResponse  <- ZIO.fromEither(body.fromJson[ErrorApiResponse])
-          .orElseFail(s"Response was not a valid Error JSON. Body: $body")
+        apiResponse  <- ZIO.fromEither(body.fromJson[ApiErrorResponse])
+          .orElseFail(s"Response was not a valid ApiErrorResponse JSON. Body: $body")
       } yield assertTrue(
         response.status == Status.BadRequest,
-        apiResponse.error.contains("Invalid JSON format:")
+        apiResponse.code.contains("InvalidJson"),
+        apiResponse.message.contains("Invalid JSON format:")
       )
     }
 
   ).provideSomeLayer[SharedTestLayer.InfraEnv & Scope](layer)
-
-  case class ErrorApiResponse(error: String)
-  object ErrorApiResponse {
-    implicit val decoder: JsonDecoder[ErrorApiResponse] = DeriveJsonDecoder.gen[ErrorApiResponse]
-  }
 }

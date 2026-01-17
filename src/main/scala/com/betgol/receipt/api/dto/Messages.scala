@@ -37,8 +37,9 @@ object ReceiptSubmissionResponse {
   implicit val decoder: JsonDecoder[ReceiptSubmissionResponse] = DeriveJsonDecoder.gen
 }
 
-case class ApiErrorResponse(error: String) extends ApiResponse
+case class ApiErrorResponse(code: String, message: String) extends ApiResponse
 object ApiErrorResponse {
   implicit val encoder: JsonEncoder[ApiErrorResponse] = DeriveJsonEncoder.gen
+  implicit val decoder: JsonDecoder[ApiErrorResponse] = DeriveJsonDecoder.gen
 }
 
