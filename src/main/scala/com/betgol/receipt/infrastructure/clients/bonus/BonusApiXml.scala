@@ -22,7 +22,7 @@ object BonusApiXml {
     val body =
       <AssignedUserBonusList>
         <AssignedUserBonus>
-          <UserGUID>{playerId.value}</UserGUID>
+          <UserId>{playerId.value}</UserId>
           <BonusId>{bonusCode.value}</BonusId>
         </AssignedUserBonus>
       </AssignedUserBonusList>
@@ -79,7 +79,7 @@ object BonusApiXml {
       
       assignedList = actionNode \ "AssignedUserBonusList" \ "AssignedUserBonus"
       isAssigned = assignedList.exists { node =>
-        (node \ "UserGUID").text.trim == playerId.value
+        (node \ "UserId").text.trim == playerId.value
       }
 
       msgOpt = actionNode.headOption.flatMap(_.attribute("msg")).map(_.text)

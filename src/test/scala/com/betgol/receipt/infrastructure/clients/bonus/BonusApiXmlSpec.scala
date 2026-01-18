@@ -58,7 +58,7 @@ object BonusApiXmlSpec extends ZIOSpecDefault {
               <action type="A.BN.1.6">
                 <AssignedUserBonusList>
                   <AssignedUserBonus>
-                    <UserGUID>{player.value}</UserGUID>
+                    <UserId>{player.value}</UserId>
                     <BonusId>{bonus.value}</BonusId>
                   </AssignedUserBonus>
                 </AssignedUserBonusList>
@@ -93,7 +93,7 @@ object BonusApiXmlSpec extends ZIOSpecDefault {
               <action msg="Success">
                 <AssignedUserBonusList>
                   <AssignedUserBonus>
-                    <UserGUID>{player.value}</UserGUID>
+                    <UserId>{player.value}</UserId>
                     <BonusId>71</BonusId>
                   </AssignedUserBonus>
                 </AssignedUserBonusList>
@@ -157,7 +157,7 @@ object BonusApiXmlSpec extends ZIOSpecDefault {
               <action msg="User not eligible">
                 <UnAssignedUserBonusList>
                   <UnAssignedUserBonus>
-                    <UserGUID>{player.value}</UserGUID>
+                    <UserId>{player.value}</UserId>
                     <BonusId>71</BonusId>
                   </UnAssignedUserBonus>
                 </UnAssignedUserBonusList>

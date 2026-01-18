@@ -33,7 +33,7 @@ object BonusXmlApiClientSpec extends ZIOSpecDefault {
       |    <body>Session error!!!</body>
       |</mtl>""".stripMargin
   val xmlSessionExpired = """<mtl><head><status>100</status></head><body><action servercode="4381" /></body></mtl>"""
-  val xmlBonusAssigned = """<mtl><head><status>100</status></head><body><action msg="Success"><AssignedUserBonusList><AssignedUserBonus><UserGUID>p1</UserGUID><BonusId>b1</BonusId></AssignedUserBonus></AssignedUserBonusList></action></body></mtl>"""
+  val xmlBonusAssigned = """<mtl><head><status>100</status></head><body><action msg="Success"><AssignedUserBonusList><AssignedUserBonus><UserId>p1</UserId><BonusId>b1</BonusId></AssignedUserBonus></AssignedUserBonusList></action></body></mtl>"""
 
   val mockClientHandler: Handler[MockClientBehavior, Throwable, (Path, Request), Response] =
     Handler.fromFunctionZIO { case (_, req) =>
