@@ -1,0 +1,90 @@
+locals {
+  project_name = "betgol-receipt-leadgen"
+  common_tags  = {
+    Project    = local.project_name
+    ManagedBy  = "Terraform"
+  }
+}
+
+# 1. ECR Repository
+module "ecr" {
+  source          = "./modules/ecr"
+  repository_name = local.project_name
+}
+
+# 2. Network
+module "vpc" {
+  source             = "./modules/networking"
+  env                = var.env
+  project_name       = local.project_name
+  cidr_block         = var.vpc_cidr
+  single_nat_gateway = var.single_nat_gateway
+}
+
+# 3. ECS Cluster
+module "ecs_cluster" {
+  source       = "./modules/ecs-cluster"
+  project_name = local.project_name
+  env          = var.env
+}
+
+# 4. ZIO App Server (REST API)
+module "api_server" {
+  source                  = "./modules/app-service"
+  project_name            = local.project_name
+  env                     = var.env
+  aws_region              = var.aws_region
+  app_name                = "receipt-server"
+  app_role                = "server"
+  docker_image            = "${module.ecr.repository_url}:${var.image_tag}"
+  mongodb_host            = var.mongodb_connection_string
+
+  desired_count           = var.app_count
+  cpu                     = var.app_cpu
+  memory                  = var.app_memory
+  on_demand_base_capacity = var.app_on_demand_base
+
+  # Infrastructure
+  cluster_id              = module.ecs_cluster.id
+  vpc_id                  = module.vpc.vpc_id
+  public_subnets          = module.vpc.public_subnets
+  private_subnets         = module.vpc.private_subnets
+  execution_role_arn      = module.ecs_cluster.execution_role_arn
+}
+
+
+# 5. Worker: receipt_verification_retry_job
+module "receipt_worker" {
+  source             = "./modules/worker-service"
+  project_name       = local.project_name
+  env                = var.env
+  aws_region         = var.aws_region
+  app_name           = "receipt-verification-retry-worker"
+  app_role           = "receipt_verification_retry_job"
+  docker_image       = "${module.ecr.repository_url}:${var.image_tag}"
+  mongodb_host       = var.mongodb_connection_string
+
+  # Infrastructure
+  cluster_id         = module.ecs_cluster.id
+  vpc_id             = module.vpc.vpc_id
+  private_subnets    = module.vpc.private_subnets
+  execution_role_arn = module.ecs_cluster.execution_role_arn
+}
+
+# 5. Worker: bonus_assignment_retry_job
+module "bonus_worker" {
+  source             = "./modules/worker-service"
+  project_name       = local.project_name
+  env                = var.env
+  aws_region         = var.aws_region
+  app_name           = "bonus-assignment-retry-worker"
+  app_role           = "bonus_assignment_retry_job"
+  docker_image       = "${module.ecr.repository_url}:${var.image_tag}"
+  mongodb_host       = var.mongodb_connection_string
+
+  # Infrastructure
+  cluster_id         = module.ecs_cluster.id
+  vpc_id             = module.vpc.vpc_id
+  private_subnets    = module.vpc.private_subnets
+  execution_role_arn = module.ecs_cluster.execution_role_arn
+}
