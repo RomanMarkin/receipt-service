@@ -60,11 +60,11 @@ We have a script in the root `scripts/` folder that handles the arguments for yo
 
 **Syntax:**
 # From the project root
-./scripts/deploy.sh <environment> <image_tag>
+./scripts/deploy.sh <environment> <image_tag> --profile <aws_profile_name>
 
 **Example (Staging):**
  
-    ./scripts/deploy.sh staging v1.0.0
+    ./scripts/deploy.sh staging v1.0.0 --profile receipt-service-deploy
 
 ### Option B: Manual Deployment
 If you need to debug or run specific flags, use the raw Terraform commands.
@@ -100,7 +100,7 @@ To destroy an environment:
 2. **Run Destroy:**
     You must provide the variables (even `app_image`, though it won't be used) to satisfy Terraform's validation.
   
-        terraform destroy \
+        AWS_PROFILE=receipt-service-deploy terraform destroy \
         -var-file="config/staging.tfvars" \
-        -var="image_tag=<placeholder>" \
+        -var="image_tag=ignore_me" \
         -var="env=staging"

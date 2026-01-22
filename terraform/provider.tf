@@ -8,8 +8,8 @@ terraform {
 }
 
 provider "aws" {
+  # Take aws_profile from AWS_PROFILE environment variable
   region  = var.aws_region
-  profile = var.aws_profile
 
   # Apply these tags to ALL resources automatically
   default_tags {

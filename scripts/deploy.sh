@@ -1,17 +1,40 @@
 #!/bin/bash
 set -e # Exit immediately if a command exits with a non-zero status
 
-# 1. Automatically switch to the Project Root directory (allows to run the script from anywhere (e.g. ./scripts/deploy.sh or cd scripts; ./deploy.sh)
+# 1. Automatically switch to the Project Root directory
 cd "$(dirname "$0")/.."
 
-# Validate script arguments
+# Argument Parsing: handles flags (like --profile) mixed with positional args
+POSITIONAL_ARGS=()
+
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    -p|--profile)
+      echo "🔑 Setting AWS Profile to: $2"
+      export AWS_PROFILE="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1") # save positional arg
+      shift # past argument
+      ;;
+  esac
+done
+
+# Restore positional arguments (ENV and TAG)
+set -- "${POSITIONAL_ARGS[@]}"
+
+# Assign Variables from positional arguments
 ENV=$1
 TAG=$2
+# ------------------------------------
 
+# Validate required arguments
 if [[ -z "$ENV" || -z "$TAG" ]]; then
   echo "❌ Error: Missing arguments."
-  echo "Usage: ./scripts/deploy.sh <staging|prod> <image_tag>"
-  echo "Example: ./scripts/deploy.sh staging v1.0.5"
+  echo "Usage: ./scripts/deploy.sh <staging|prod> <image_tag> [options]"
+  echo "Example: ./scripts/deploy.sh staging v1.0.5 --profile receipt-service-deploy"
   exit 1
 fi
 
@@ -25,6 +48,13 @@ fi
 
 echo "🚀 Deploying to environment: $ENV"
 echo "📦 Using Docker Image Tag: $TAG"
+
+# Check if AWS_PROFILE is set (either by flag or pre-existing env var)
+if [[ -n "$AWS_PROFILE" ]]; then
+    echo "👤 Using AWS Profile: $AWS_PROFILE"
+else
+    echo "👤 Using default AWS credentials (no specific profile set)"
+fi
 echo "---------------------------------------------------"
 
 # 4. Check if Terraform is initialized
@@ -38,10 +68,12 @@ fi
 # 5. Switch to the correct Workspace
 echo "---------------------------------------------------"
 echo "🔄 Switching to Terraform Workspace: $ENV"
+# The || operator ensures that if select fails, new is run, without triggering 'set -e'
 terraform -chdir=terraform workspace select $ENV || terraform -chdir=terraform workspace new $ENV
 
 # 6. Run Terraform Apply
 echo "---------------------------------------------------"
+# Terraform automatically picks up the exported AWS_PROFILE environment variable.
 terraform -chdir=terraform apply \
   -var-file="../$VAR_FILE" \
   -var="image_tag=$TAG" \

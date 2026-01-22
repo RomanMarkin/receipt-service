@@ -1,9 +1,3 @@
-# Identity
-aws_profile = "receipt-service-deploy"
-
-# App Settings
-mongodb_connection_string = "mongodb+srv://myuser:mypassword@cluster0.abcde.mongodb.net" # TODO replace with correct one
-
 # Resources
 app_cpu     = 256 # 0.25 vCPU
 app_memory  = 512 # 0.5 GB RAM

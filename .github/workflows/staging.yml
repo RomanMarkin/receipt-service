@@ -1,0 +1,85 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [ "**" ]       # Run tests on all branches
+    tags: [ "release@*" ]    # Deploy only on release tags
+
+env:
+  JAVA_VERSION: '17'
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'sbt'
+
+      - name: Run Tests
+        run: sbt test
+
+  build-and-deploy:
+    name: Build & Deploy
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/release@') # Only run on release@ tags
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (Needed for sbt-native-packager if used, or just good practice)
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract Version
+        id: extract_version
+        # turns "refs/tags/release@v1.0.5" into "v1.0.5"
+        run: echo "VERSION=${GITHUB_REF#refs/tags/release@}" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Docker Image
+        env:
+          IMAGE_TAG: ${{ steps.extract_version.outputs.VERSION }}
+        run: |
+          docker build -t $ECR_REPOSITORY_URL:$IMAGE_TAG .
+          docker push $ECR_REPOSITORY_URL:$IMAGE_TAG
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Deploy with Terraform
+        env:
+          # Variables with TF_VAR_<NAME> prefix passed into Terraform as environment variable <NAME>
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          # Override the Profile to be EMPTY. This forces Terraform to ignore the value in staging.tfvars
+          # and use the AWS_ACCESS_KEY_ID/SECRET from the runner environment instead.
+          TF_VAR_aws_profile: ""
+          TF_VAR_mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
+          IMAGE_TAG: ${{ steps.extract_version.outputs.VERSION }}
+        run: |
+          chmod +x ./scripts/deploy.sh
+          ./scripts/deploy.sh staging $IMAGE_TAG

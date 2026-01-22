@@ -1,0 +1,60 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version Tag to Deploy (e.g. v1.0.5)'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+
+jobs:
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Verify Image Exists
+        env:
+          IMAGE_TAG: ${{ inputs.version }}
+        run: |
+          # Extract Repo Name from URL (remove the domain part)
+          # URL: 123.dkr.../betgol-receipt-leadgen -> Repo: betgol-receipt-leadgen
+          REPO_NAME=$(echo $ECR_REPOSITORY_URL | cut -d/ -f2)
+          
+          echo "Checking for image: $REPO_NAME:$IMAGE_TAG"
+          aws ecr describe-images --repository-name $REPO_NAME --image-ids imageTag=$IMAGE_TAG
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Deploy with Terraform
+        env:
+          # Variables with TF_VAR_<NAME> prefix passed into Terraform as environment variable <NAME>
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          # Override the Profile to be EMPTY. This forces Terraform to ignore the value in prod.tfvars
+          # and use the AWS_ACCESS_KEY_ID/SECRET from the runner environment instead.
+          TF_VAR_aws_profile: ""
+          TF_VAR_mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
+          IMAGE_TAG: ${{ inputs.version }}
+        run: |
+          chmod +x ./scripts/deploy.sh
+          ./scripts/deploy.sh prod $IMAGE_TAG
