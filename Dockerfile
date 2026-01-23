@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: The Builder (for code compilation)
 # ==========================================
-FROM sbtscala/scala-sbt:eclipse-temurin-17.0.10_1.9.8_3.4.0 AS builder
+FROM sbtscala/scala-sbt:eclipse-temurin-17.0.15_6_1.11.7_3.3.7 AS builder
 
 WORKDIR /app
 
