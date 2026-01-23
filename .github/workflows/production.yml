@@ -36,25 +36,37 @@ jobs:
         env:
           IMAGE_TAG: ${{ inputs.version }}
         run: |
-          # Extract Repo Name from URL (remove the domain part)
-          # URL: 123.dkr.../betgol-receipt-leadgen -> Repo: betgol-receipt-leadgen
-          REPO_NAME=$(echo $ECR_REPOSITORY_URL | cut -d/ -f2)
+          # Extract Repo Name from URL
+          # Logic: Remove everything up to and including the first slash
+          # Example: 123.dkr.../group/my-repo -> group/my-repo
+          REPO_NAME=${ECR_REPOSITORY_URL#*/}
           
-          echo "Checking for image: $REPO_NAME:$IMAGE_TAG"
-          aws ecr describe-images --repository-name $REPO_NAME --image-ids imageTag=$IMAGE_TAG
+          echo "🔍 Verifying image exists in ECR..."
+          echo "   Repo:  $REPO_NAME"
+          echo "   Tag:   $IMAGE_TAG"
+          
+          # This command fails (exit 1) if the image is missing, stopping the pipeline safely.
+          aws ecr describe-images --repository-name $REPO_NAME --image-ids imageTag=$IMAGE_TAG > /dev/null
+
+          echo "✅ Image found. Proceeding to deploy."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Deploy with Terraform
         env:
-          # Variables with TF_VAR_<NAME> prefix passed into Terraform as environment variable <NAME>
+          # Terraform Variables
           TF_VAR_aws_region: ${{ env.AWS_REGION }}
-          # Override the Profile to be EMPTY. This forces Terraform to ignore the value in prod.tfvars
-          # and use the AWS_ACCESS_KEY_ID/SECRET from the runner environment instead.
-          TF_VAR_aws_profile: ""
-          TF_VAR_mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
+          TF_VAR_app_secrets: |
+            {
+              "mongodb_connection_string": "${{ secrets.MONGODB_CONNECTION_STRING }}",
+              "bonus_app_code": "${{ secrets.BONUS_APP_CODE }}",
+              "api_peru_token": "${{ secrets.API_PERU_TOKEN }}",
+              "factiliza_token": "${{ secrets.FACTILIZA_TOKEN }}",
+              "json_pe_token": "${{ secrets.JSON_PE_TOKEN }}"
+            }
           IMAGE_TAG: ${{ inputs.version }}
         run: |
           chmod +x ./scripts/deploy.sh
+          # Run the script for 'prod' environment
           ./scripts/deploy.sh prod $IMAGE_TAG

@@ -7,7 +7,12 @@ variable "aws_region" {}
 variable "app_name" {}
 variable "app_role" {}
 variable "docker_image" {}
-variable "mongodb_host" {}
+variable "app_secrets" {
+  description = "Map of sensitive application secrets (DB, API tokens, keys, etc.)"
+  type        = map(string)
+  sensitive   = true
+  default     = {}
+}
 variable "container_port" {
   description = "The port exposed by the container"
   type        = number

@@ -74,10 +74,21 @@ terraform -chdir=terraform workspace select $ENV || terraform -chdir=terraform w
 # 6. Run Terraform Apply
 echo "---------------------------------------------------"
 # Terraform automatically picks up the exported AWS_PROFILE environment variable.
-terraform -chdir=terraform apply \
+CMD="terraform -chdir=terraform apply \
   -var-file="../$VAR_FILE" \
   -var="image_tag=$TAG" \
-  -var="env=$ENV"
+  -var="env=$ENV""
 
+# Check for local secret file (in case we run script manually from local machine)
+SECRET_FILE="terraform/secret.tfvars"
+if [[ -f "$SECRET_FILE" ]]; then
+  echo "🔓 Found local secrets file ($SECRET_FILE). Including it..."
+  CMD="$CMD -var-file="../$SECRET_FILE""
+else
+  echo "🔒 No local secrets file found. Relying on TF_VAR_ env vars (CI/CD mode)."
+fi
+
+# Execute command
+eval $CMD
 echo "---------------------------------------------------"
 echo "✅ Deployment Complete!"

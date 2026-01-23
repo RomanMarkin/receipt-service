@@ -1,0 +1,30 @@
+# Version Control
+.git
+.gitignore
+
+# IDE & OS System Files
+.idea
+.bsp
+.DS_Store
+
+# Build Artifacts (Crucial - these are huge)
+target
+project/target
+project/project/target
+
+# Secrets & Environment Variables (Security)
+.env
+*.tfvars
+
+# Infrastructure & Deployment Scripts
+terraform
+scripts
+ci-cd
+.github
+
+# Documentation
+README.md
+
+# Docker itself
+Dockerfile
+.dockerignore

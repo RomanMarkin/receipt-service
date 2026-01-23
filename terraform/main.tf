@@ -37,7 +37,7 @@ module "api_server" {
   app_name                = "receipt-server"
   app_role                = "server"
   docker_image            = "${module.ecr.repository_url}:${var.image_tag}"
-  mongodb_host            = var.mongodb_connection_string
+  app_secrets             = var.app_secrets
 
   desired_count           = var.app_count
   cpu                     = var.app_cpu
@@ -62,7 +62,7 @@ module "receipt_worker" {
   app_name           = "receipt-verification-retry-worker"
   app_role           = "receipt_verification_retry_job"
   docker_image       = "${module.ecr.repository_url}:${var.image_tag}"
-  mongodb_host       = var.mongodb_connection_string
+  app_secrets        = var.app_secrets
 
   # Infrastructure
   cluster_id         = module.ecs_cluster.id
@@ -80,7 +80,7 @@ module "bonus_worker" {
   app_name           = "bonus-assignment-retry-worker"
   app_role           = "bonus_assignment_retry_job"
   docker_image       = "${module.ecr.repository_url}:${var.image_tag}"
-  mongodb_host       = var.mongodb_connection_string
+  app_secrets        = var.app_secrets
 
   # Infrastructure
   cluster_id         = module.ecs_cluster.id

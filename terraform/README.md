@@ -91,16 +91,25 @@ If you need to debug or run specific flags, use the raw Terraform commands.
 
 **⚠️ Warning:** This will permanently delete all resources (Load Balancers, Networking, Clusters).
 
-To destroy an environment:
+### Option 1: Destroy using the script
+    
+    ./scripts/destroy.sh <prod|staging> <image_tag> --profile <aws_profile_name>
 
+#### Example (staging):
+    
+    ./scripts/destroy.sh staging v1.0.0 --profile receipt-service-deploy
+
+### Option 2: Destroy manually
 1.  **Select the correct workspace:**
      
         terraform workspace select staging
 
 2. **Run Destroy:**
-    You must provide the variables (even `app_image`, though it won't be used) to satisfy Terraform's validation.
+
+You must provide the variables (even `image_tag`, though it won't be used) to satisfy Terraform's validation.
   
         AWS_PROFILE=receipt-service-deploy terraform destroy \
         -var-file="config/staging.tfvars" \
-        -var="image_tag=ignore_me" \
+        -var-file="secret.tfvars" \
+        -var="image_tag=v0.0.1" \
         -var="env=staging"

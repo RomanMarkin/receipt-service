@@ -44,8 +44,9 @@ variable "single_nat_gateway" {
   default     = false
 }
 
-variable "mongodb_connection_string" {
-  description = "The MongoDB connection string (e.g. mongodb+srv://...)"
-  type        = string
-  sensitive   = true # Hides it from Terraform CLI output for security
+variable "app_secrets" {
+  description = "Map of sensitive application secrets (DB, API tokens, keys, etc.)"
+  type        = map(string)
+  sensitive   = true
+  default     = {}
 }
