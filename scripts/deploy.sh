@@ -75,6 +75,7 @@ terraform -chdir=terraform workspace select $ENV || terraform -chdir=terraform w
 echo "---------------------------------------------------"
 # Terraform automatically picks up the exported AWS_PROFILE environment variable.
 CMD="terraform -chdir=terraform apply \
+  -auto-approve \
   -var-file="../$VAR_FILE" \
   -var="image_tag=$TAG" \
   -var="env=$ENV""
