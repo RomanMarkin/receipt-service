@@ -6,10 +6,9 @@ locals {
   }
 }
 
-# 1. ECR Repository
-module "ecr" {
-  source          = "./modules/ecr"
-  repository_name = local.project_name
+# 1. Use existing global ECR Repository
+data "aws_ecr_repository" "app_repo" {
+  name = "betgol-receipt-leadgen"
 }
 
 # 2. Network
@@ -36,7 +35,7 @@ module "api_server" {
   aws_region              = var.aws_region
   app_name                = "receipt-server"
   app_role                = "server"
-  docker_image            = "${module.ecr.repository_url}:${var.image_tag}"
+  docker_image            = "${data.aws_ecr_repository.app_repo.repository_url}:${var.image_tag}"
   app_secrets             = var.app_secrets
 
   desired_count           = var.app_count
@@ -61,7 +60,7 @@ module "receipt_worker" {
   aws_region         = var.aws_region
   app_name           = "receipt-verification-retry-worker"
   app_role           = "receipt_verification_retry_job"
-  docker_image       = "${module.ecr.repository_url}:${var.image_tag}"
+  docker_image       = "${data.aws_ecr_repository.app_repo.repository_url}:${var.image_tag}"
   app_secrets        = var.app_secrets
 
   # Infrastructure
@@ -79,7 +78,7 @@ module "bonus_worker" {
   aws_region         = var.aws_region
   app_name           = "bonus-assignment-retry-worker"
   app_role           = "bonus_assignment_retry_job"
-  docker_image       = "${module.ecr.repository_url}:${var.image_tag}"
+  docker_image       = "${data.aws_ecr_repository.app_repo.repository_url}:${var.image_tag}"
   app_secrets        = var.app_secrets
 
   # Infrastructure
