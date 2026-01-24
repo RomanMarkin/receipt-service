@@ -10,9 +10,8 @@ terraform {
     bucket         = "betgol-receipt-leadgen-terraform-state" # Was created in /terraform/global/backend.tf
     key            = "receipt-service.tfstate"                # Path to file in bucket
     region         = "us-east-1"
-    dynamodb_table = "betgol-receipt-leadgen-terraform-locks" # Was created in /terraform/global/backend.tf
+    use_lockfile   = true
     encrypt        = true
-    profile        = "receipt-service-deploy" # Optional: forces usage of specific profile
   }
 }
 

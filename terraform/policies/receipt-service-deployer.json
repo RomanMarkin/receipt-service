@@ -10,22 +10,6 @@
       "Resource": "*"
     },
     {
-      "Sid": "TerraformStateLocking",
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:Describe*",
-        "dynamodb:Get*",
-        "dynamodb:PutItem",
-        "dynamodb:DeleteItem",
-        "dynamodb:CreateTable",
-        "dynamodb:DeleteTable",
-        "dynamodb:Update*",
-        "dynamodb:TagResource",
-        "dynamodb:ListTagsOfResource"
-      ],
-      "Resource": "arn:aws:dynamodb:*:*:table/betgol-receipt-leadgen-terraform-locks"
-    },
-    {
       "Sid": "S3FullAccess",
       "Effect": "Allow",
       "Action": [
