@@ -43,7 +43,7 @@ resource "aws_ecs_task_definition" "worker" {
       environment = [
         { name = "ENV", value = var.env },
         { name = "APP_ROLE", value = var.app_role },
-        { name = "DB_CONNECTION_STRING", value = var.app_secrets["mongodb_connection_string"] },
+        { name = "MONGODB_CONNECTION_STRING", value = var.app_secrets["mongodb_connection_string"] },
         { name = "BONUS_APP_CODE",  value = var.app_secrets["bonus_app_code"] },
         { name = "API_PERU_TOKEN",  value = var.app_secrets["api_peru_token"] },
         { name = "FACTILIZA_TOKEN", value = var.app_secrets["factiliza_token"] },

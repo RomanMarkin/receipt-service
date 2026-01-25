@@ -9,10 +9,11 @@ case class AppConfig(mongo: MongoConfig,
                      verificationService: VerificationServiceConfig,
                      bonusService: BonusServiceConfig)
 
-case class MongoConfig(user: String,
-                       pass: String,
-                       host: String,
-                       port: Int,
+case class MongoConfig(uri: Option[String],
+                       user: Option[String],
+                       pass: Option[String],
+                       host: Option[String],
+                       port: Option[Int],
                        dbName: String)
 
 case class VerificationServiceConfig(verificationTimeoutSeconds: Int = 4,
