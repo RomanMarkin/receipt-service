@@ -1,10 +1,10 @@
 package com.betgol.receipt.infrastructure.parsers
 
-import zio._
-import zio.test._
-import zio.test.Assertion._
-import com.betgol.receipt.domain.Ids.CountryCode
 import com.betgol.receipt.domain.models.FiscalDocument
+import zio.*
+import zio.test.*
+import zio.test.Assertion.*
+
 import java.time.LocalDate
 
 
@@ -29,6 +29,15 @@ object SunatQrParserSpec extends ZIOSpecDefault {
           result.number == "00068781",
           result.totalAmount == 239.13,
           result.issuedAt == LocalDate.of(2025, 2, 22),
+        )
+      },
+
+      test("successfully parses alphanumeric series (e.g. B1U3)") {
+        val input = "20503840121|01|B1U3|00068781|0.0|100.00|2025-02-22"
+        for {
+          result <- parser.parse(input)
+        } yield assertTrue(
+          result.series == "B1U3"
         )
       },
 
@@ -102,6 +111,14 @@ object SunatQrParserSpec extends ZIOSpecDefault {
         val input = "12345678901|01|F1|00001234|0|100|2024-01-01"
         assertZIO(parser.parse(input).exit)(
           fails(containsString("Invalid document series: F1"))
+        )
+      },
+
+      test("fails on invalid Series (contains illegal special chars)") {
+        // Dash '-' is not allowed in the regex [A-Z0-9]
+        val input = "12345678901|01|F00-|00001234|0|100|2024-01-01"
+        assertZIO(parser.parse(input).exit)(
+          fails(containsString("Invalid document series: F00-"))
         )
       },
 

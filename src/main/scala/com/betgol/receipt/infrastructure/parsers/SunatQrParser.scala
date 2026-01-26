@@ -18,16 +18,16 @@ import scala.util.Try
  * issuerTaxId | docType | docSeries | docNumber | vatAmount | totalAmount | issueDate
  *
  * Field details:
- *   - issuerTaxId: 11-digit numeric string (e.g. "12345678901")
- *   - docType:     must be "01" or "03"
- *   - docSeries:   pattern `^[FB]\d{3}$ (e.g. "F001", "B123")`
- *   - docNumber:   8-digit numeric string
- *   - vatAmount:   ignored
- *   - totalAmount: decimal number; commas are allowed and normalized
- *   - issueDate:   accepts formats "dd/MM/yyyy" or "yyyy-MM-dd"
- *   - customerIdType: ignored
- *   - customerDocumentNumber: ignored
- *   - digitalSignatureHash: ignored
+ * - issuerTaxId: 11-digit numeric string (e.g. "12345678901")
+ * - docType:     must be "01" (Factura) or "03" (Boleta)
+ * - docSeries:   4 chars, starts with F/B, followed by 3 alphanumeric chars (e.g. "F001", "B1U3", "BGLM")
+ * - docNumber:   8-digit numeric string
+ * - vatAmount:   ignored
+ * - totalAmount: decimal number; commas are allowed and normalized
+ * - issueDate:   accepts formats "dd/MM/yyyy" or "yyyy-MM-dd"
+ * - customerIdType: ignored
+ * - customerDocumentNumber: ignored
+ * - digitalSignatureHash: ignored
  *
  * Example rawData:
  * "12345678901|01|F001|00001234|18.0|150.50|2024-11-30"
@@ -51,15 +51,16 @@ case class SunatQrParser() extends ReceiptParser {
       }
 
       issuerTaxId = parts(0)
-      docType = parts(1)
-      docSeries = parts(2)
-      docId = parts(3)
-      totalStr = parts(5).replace(",", ".")
-      dateStr = parts(6)
+      docType     = parts(1)
+      docSeries   = parts(2)
+      docId       = parts(3)
+      // vatAmount = parts(4) (ignored)
+      totalStr    = parts(5).replace(",", ".")
+      dateStr     = parts(6).trim
 
       _ <- Either.cond(issuerTaxId.matches("\\d{11}"), (), s"Invalid Issuer Tax Id (RUC): $issuerTaxId")
       _ <- Either.cond(docType == "01" || docType == "03", (), s"Invalid document type: $docType")
-      _ <- Either.cond(docSeries.matches("^[FB]\\d{3}$"), (), s"Invalid document series: $docSeries")
+      _ <- Either.cond(docSeries.matches("^[FB][A-Z0-9]{3}$"), (), s"Invalid document series: $docSeries")
       _ <- Either.cond(docId.matches("\\d{8}"), (), s"Invalid document number: $docId")
       
       total <- Try(totalStr.toDouble).toOption
