@@ -39,7 +39,11 @@ object ReceiptRoutes {
                   errorResponse("SystemError", "Internal Server Error", Status.InternalServerError)
             }
           }
-      }
+      },
+
+      Method.GET / "health" -> handler(
+        Response.text("OK").status(Status.Ok)
+      )
     )
 
   private def toSuccessResponse(res: ReceiptSubmissionResult): Response =
