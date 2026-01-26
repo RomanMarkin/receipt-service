@@ -13,6 +13,7 @@ variable "app_secrets" {
   sensitive   = true
   default     = {}
 }
+variable "app_db_name" {}
 variable "container_port" {
   description = "The port exposed by the container"
   type        = number

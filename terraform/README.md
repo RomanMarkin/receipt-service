@@ -27,6 +27,11 @@ Search for and select `ReceiptServiceDeployerPolicy`.
 
 **⚠️ Critical First Step:** You must run this **before** initializing the main Terraform project.
 
+### A. Setup MongoDB Atlas Credentials
+We need to generate **Organization API Keys** manually to let Terraform create databases. This process is non-trivial.
+👉 **[Read the MongoDB Setup Guide](./MONGODB_SETUP.md)** to configure your API keys and GitHub secrets.
+
+### B. Run the Global Deploy Script
 This script provisions the shared resources used by all environments:
 1.  **ECR Repository:** Stores Docker images (`betgol-receipt-leadgen`).
 2.  **Terraform Backend:** Creates the S3 Bucket and DynamoDB Table used to store and lock the remote state.

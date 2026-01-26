@@ -13,6 +13,7 @@ variable "app_secrets" {
   sensitive   = true
   default     = {}
 }
+variable "app_db_name" {}
 
 # 3. Infrastructure Dependencies
 variable "vpc_id" {}

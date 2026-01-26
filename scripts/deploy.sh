@@ -58,12 +58,8 @@ fi
 echo "---------------------------------------------------"
 
 # 4. Check if Terraform is initialized
-if [[ ! -d "terraform/.terraform" ]]; then
-  echo "⚙️  Terraform not initialized. Running 'terraform init'..."
-  terraform -chdir=terraform init
-else
-  echo "✅ Terraform already initialized. Skipping init."
-fi
+echo "⚙️  Initializing Terraform..."
+terraform -chdir=terraform init -input=false
 
 # 5. Switch to the correct Workspace
 echo "---------------------------------------------------"

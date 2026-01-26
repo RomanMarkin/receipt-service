@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    mongodbatlas = {
+      source  = "mongodb/mongodbatlas"
+      version = "~> 2.0.1"
+    }
   }
 
   backend "s3" {
@@ -23,4 +27,9 @@ provider "aws" {
   default_tags {
     tags = local.common_tags
   }
+}
+
+provider "mongodbatlas" {
+  public_key  = var.mongodb_atlas_public_key
+  private_key = var.mongodb_atlas_private_key
 }

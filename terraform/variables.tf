@@ -50,3 +50,37 @@ variable "app_secrets" {
   sensitive   = true
   default     = {}
 }
+
+variable "mongodb_atlas_org_id" {
+  description = "The Organization ID from MongoDB Atlas Settings"
+  type        = string
+  sensitive   = true
+}
+
+variable "mongodb_atlas_public_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "mongodb_atlas_private_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "mongodb_atlas_instance_size_name" {
+  description = "Cluster size (M0, M2, M10, M20...)"
+  type        = string
+  default     = "M0"
+}
+
+variable "mongodb_atlas_provider_name" {
+  description = "The provider name. 'TENANT' for M0/M2/M5, 'AWS' for M10+"
+  type        = string
+  default     = "TENANT"
+}
+
+variable "app_db_name" {
+  description = "The name of the MongoDB database to create and connect to"
+  type        = string
+  default     = "receipt_db"
+}
