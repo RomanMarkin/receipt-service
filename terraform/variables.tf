@@ -84,3 +84,9 @@ variable "app_db_name" {
   type        = string
   default     = "receipt_db"
 }
+
+variable "domain_name" {
+  description = "The hosted zone name managed in AWS"
+  type        = string
+  default     = "receipt-api.betgol.com"
+}

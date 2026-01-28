@@ -38,3 +38,8 @@ resource "aws_ecr_lifecycle_policy" "this" {
     }]
   })
 }
+
+# 3. Create the Hosted Zone
+resource "aws_route53_zone" "main" {
+  name = "receipt-api.betgol.com"
+}

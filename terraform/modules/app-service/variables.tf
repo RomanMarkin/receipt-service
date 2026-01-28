@@ -19,6 +19,10 @@ variable "container_port" {
   type        = number
   default     = 8080
 }
+variable "certificate_arn" {
+  description = "ARN of the validated SSL certificate"
+  type        = string
+}
 
 # 3. Infrastructure Dependencies
 variable "vpc_id" {}

@@ -23,7 +23,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 echo "---------------------------------------------------"
-echo "🌍 Deploying GLOBAL Infrastructure (ECR Repo)"
+echo "🌍 Deploying GLOBAL Infrastructure (ECR + DNS)"
 echo "📂 Working Directory: $(pwd)"
 if [[ -n "$AWS_PROFILE" ]]; then
     echo "👤 Using AWS Profile: $AWS_PROFILE"
@@ -46,8 +46,13 @@ terraform init
 # 5. Terraform Apply
 echo "---------------------------------------------------"
 echo "🚀 Applying Global Infrastructure..."
-echo "   (This will create the ECR repository if it doesn't exist)"
+echo "   (Creates ECR Repositories & Route53 Hosted Zones)"
 terraform apply
 
+# 6. Post-Deploy Instructions
 echo "---------------------------------------------------"
 echo "✅ Global Deployment Complete!"
+echo ""
+echo "👇 IMPORTANT: Use these Nameservers at your Domain Registrar (GoDaddy/Namecheap):"
+terraform output nameservers
+echo "---------------------------------------------------"

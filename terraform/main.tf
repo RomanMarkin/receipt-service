@@ -1,14 +1,22 @@
 locals {
   project_name = "betgol-receipt-leadgen"
+  zone_name    = var.domain_name
+  api_domain   = var.env == "prod" ? var.domain_name : "dev.${var.domain_name}"
   common_tags  = {
     Project    = local.project_name
     ManagedBy  = "Terraform"
   }
 }
 
-# 1. Use existing global ECR Repository
+# 1. References to existing global resources
+# ECR Repository
 data "aws_ecr_repository" "app_repo" {
   name = "betgol-receipt-leadgen"
+}
+
+# DNS Zone ID
+data "aws_route53_zone" "main" {
+  name = local.zone_name
 }
 
 # 2. Network
@@ -40,7 +48,14 @@ module "db" {
   db_name            = var.app_db_name
 }
 
-# 5. ZIO App Server (REST API)
+# 5. SSL Certificate
+module "certificate" {
+  source         = "./modules/certificate"
+  domain_name    = local.api_domain
+  hosted_zone_id = data.aws_route53_zone.main.zone_id
+}
+
+# 6. App-Server (REST API)
 module "api_server" {
   source                  = "./modules/app-service"
   project_name            = local.project_name
@@ -51,6 +66,7 @@ module "api_server" {
   docker_image            = "${data.aws_ecr_repository.app_repo.repository_url}:${var.image_tag}"
   app_secrets             = merge(var.app_secrets, { "mongodb_connection_string" = module.db.connection_string_full })
   app_db_name             = var.app_db_name
+  certificate_arn         = module.certificate.certificate_arn
 
   desired_count           = var.app_count
   cpu                     = var.app_cpu
@@ -65,8 +81,16 @@ module "api_server" {
   execution_role_arn      = module.ecs_cluster.execution_role_arn
 }
 
+# 4. DNS Record
+module "dns" {
+  source = "./modules/dns"
+  domain_name = local.api_domain
+  zone_id     = data.aws_route53_zone.main.zone_id
+  alb_dns_name = module.api_server.alb_dns_name
+  alb_zone_id  = module.api_server.alb_zone_id
+}
 
-# 6. Worker: receipt_verification_retry_job
+# 7. Worker: receipt_verification_retry_job
 module "receipt_worker" {
   source             = "./modules/worker-service"
   project_name       = local.project_name
@@ -85,7 +109,7 @@ module "receipt_worker" {
   execution_role_arn = module.ecs_cluster.execution_role_arn
 }
 
-# 7. Worker: bonus_assignment_retry_job
+# 8. Worker: bonus_assignment_retry_job
 module "bonus_worker" {
   source             = "./modules/worker-service"
   project_name       = local.project_name

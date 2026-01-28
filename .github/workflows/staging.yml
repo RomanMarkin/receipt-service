@@ -55,7 +55,7 @@ jobs:
 
       - name: Extract Version
         id: extract_version
-        # turns "refs/tags/release@v1.0.5" into "v1.0.5"
+        # turns "refs/tags/release@1.0.5" into "1.0.5"
         run: echo "VERSION=${GITHUB_REF#refs/tags/release@}" >> $GITHUB_OUTPUT
 
       - name: Build and Push Docker Image
